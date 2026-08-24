@@ -13,6 +13,8 @@ class ColumnInfo(BaseModel):
     missing_count: int
     missing_pct: float
     unique_count: int
+    min_date: str | None = None
+    max_date: str | None = None
 
 
 class DatasetProfile(BaseModel):
@@ -27,6 +29,7 @@ class DatasetProfile(BaseModel):
     boolean_columns: list[str]
     missing_total: int
     duplicate_rows: int
+    date_ranges: dict[str, dict[str, str]] = Field(default_factory=dict)
     uploaded_at: datetime
 
 

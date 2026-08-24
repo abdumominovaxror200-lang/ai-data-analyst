@@ -89,7 +89,14 @@ class OpenAICompatibleProvider(LLMProvider):
         )
 
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ProviderResponse:
-        payload = {"model": self._model, "messages": messages, "tools": tools, "tool_choice": "auto"}
+        payload: dict[str, Any] = {"model": self._model, "messages": messages}
+        if tools:
+            # Omit "tools"/"tool_choice" entirely when empty rather than sending an
+            # empty array — used to force a final natural-language answer (see the
+            # agent's stagnant-loop stop condition) without the model reaching for
+            # another tool call.
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
         if self._reasoning_effort:
             payload["reasoning_effort"] = self._reasoning_effort
 
@@ -97,7 +104,10 @@ class OpenAICompatibleProvider(LLMProvider):
             try:
                 response = self._client.post("/chat/completions", json=payload)
             except httpx.RequestError as exc:
-                raise LLMProviderError(f"Could not reach the LLM provider: {exc}") from exc
+                # Log the real network detail server-side only — a raw exception string
+                # can include hostnames/ports that shouldn't reach the end user.
+                logger.warning("LLM provider network error: %s", exc)
+                raise LLMProviderError(_FRIENDLY_MESSAGES["network"]) from exc
 
             if response.status_code == 429 and attempt < _MAX_RETRIES:
                 # Free-tier rate limits (e.g. Groq's per-minute token budget) are often
@@ -116,9 +126,16 @@ class OpenAICompatibleProvider(LLMProvider):
             try:
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
-                raise LLMProviderError(_describe_http_error(exc)) from exc
+                raise LLMProviderError(_friendly_error_message(exc)) from exc
 
-            message = response.json()["choices"][0]["message"]
+            try:
+                message = response.json()["choices"][0]["message"]
+            except (ValueError, KeyError, IndexError) as exc:
+                # A malformed/unexpected response body must never crash the request —
+                # log the raw body server-side, tell the user something generic.
+                logger.error("LLM provider returned an unparseable response: %s | body=%r", exc, response.text[:2000])
+                raise LLMProviderError(_FRIENDLY_MESSAGES["default"]) from exc
+
             tool_calls = []
             for call in message.get("tool_calls") or []:
                 try:
@@ -128,18 +145,40 @@ class OpenAICompatibleProvider(LLMProvider):
                 tool_calls.append(ToolCall(id=call["id"], name=call["function"]["name"], arguments=arguments))
             return ProviderResponse(content=message.get("content"), tool_calls=tool_calls)
 
-        raise LLMProviderError("LLM provider is rate-limiting requests. Please try again shortly.")
+        raise LLMProviderError(_FRIENDLY_MESSAGES["rate_limit"])
 
 
-def _describe_http_error(exc: httpx.HTTPStatusError) -> str:
+# User-facing messages only — deliberately generic. The real provider detail (org ids,
+# token-budget numbers, billing links, raw exception text) is always logged server-side
+# via `logger.warning`/`logger.error` instead, never returned in an API response.
+_FRIENDLY_MESSAGES = {
+    "rate_limit": "The AI is receiving a lot of requests right now. Please try again in a moment.",
+    "too_large": "That question needed more data than the AI can process in one go. Try asking something more specific or narrower.",
+    "auth": "The AI provider rejected the request. Please contact the site administrator.",
+    "unavailable": "The AI provider is temporarily unavailable. Please try again shortly.",
+    "network": "Could not reach the AI provider. Please try again shortly.",
+    "default": "The AI couldn't complete this request. Please try again or rephrase your question.",
+}
+
+
+def _friendly_error_message(exc: httpx.HTTPStatusError) -> str:
     status = exc.response.status_code
-    if status == 429:
-        return "LLM provider is rate-limiting requests. Please try again shortly."
+    # Log the full raw detail server-side for debugging — never expose it to the client.
     try:
         detail = exc.response.json().get("error", {}).get("message")
     except Exception:  # noqa: BLE001 - response body may not be JSON
-        detail = None
-    return f"LLM provider request failed ({status}){': ' + detail if detail else '.'}"
+        detail = exc.response.text[:500]
+    logger.warning("LLM provider HTTP error %s: %s", status, detail)
+
+    if status == 429:
+        return _FRIENDLY_MESSAGES["rate_limit"]
+    if status == 413:
+        return _FRIENDLY_MESSAGES["too_large"]
+    if status in (401, 403):
+        return _FRIENDLY_MESSAGES["auth"]
+    if status >= 500:
+        return _FRIENDLY_MESSAGES["unavailable"]
+    return _FRIENDLY_MESSAGES["default"]
 
 
 class MockProvider(LLMProvider):
@@ -148,9 +187,11 @@ class MockProvider(LLMProvider):
     def __init__(self, script: list[ProviderResponse]) -> None:
         self._script = list(script)
         self.calls: list[list[dict[str, Any]]] = []
+        self.tools_per_call: list[list[dict[str, Any]]] = []
 
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ProviderResponse:
         self.calls.append(messages)
+        self.tools_per_call.append(tools)
         if not self._script:
             return ProviderResponse(content="No more scripted responses.")
         return self._script.pop(0)

@@ -94,13 +94,85 @@ def test_agent_surfaces_tool_errors_without_crashing(record):
 
 
 def test_agent_stops_after_max_iterations_without_infinite_loop(record):
-    infinite_call = ProviderResponse(
-        content=None,
-        tool_calls=[ToolCall(id="call_x", name="profile_dataset", arguments={})],
-    )
-    provider = MockProvider([infinite_call] * 20)
+    """Every call here is genuinely distinct (different top_n each time) so duplicate
+    detection never kicks in — this isolates the hard MAX_TOOL_ITERATIONS fallback."""
+    from app.agent.agent import MAX_TOOL_ITERATIONS
+
+    varied_calls = [
+        ProviderResponse(
+            content=None,
+            tool_calls=[
+                ToolCall(
+                    id=f"call_{i}",
+                    name="group_and_aggregate",
+                    arguments={"group_by": "region", "agg_column": "revenue", "top_n": i + 1},
+                )
+            ],
+        )
+        for i in range(20)
+    ]
+    provider = MockProvider(varied_calls)
     agent = DataAnalystAgent(provider)
 
     result = agent.ask(record, "Keep going forever")
     assert "tool-call limit" in result["answer"]
-    assert len(provider.calls) == 6  # MAX_TOOL_ITERATIONS
+    assert len(provider.calls) == MAX_TOOL_ITERATIONS
+
+
+def test_agent_dataset_context_includes_date_coverage():
+    """Date coverage must be front-and-center in what the model sees from the start —
+    this is what lets it catch a '12 months' request the data can't actually support,
+    without needing to call a tool first to discover the mismatch."""
+    df = pd.DataFrame(
+        {
+            "date": pd.date_range("2024-01-01", "2024-08-31", freq="D"),
+            "revenue": range(244),
+        }
+    )
+    record = DatasetRecord(
+        id="test-id-2",
+        original_filename="short_history.csv",
+        extension=".csv",
+        uploaded_at=pd.Timestamp.utcnow(),
+        df=df,
+        stored_path="unused",
+    )
+    provider = MockProvider([ProviderResponse(content="ok")])
+    agent = DataAnalystAgent(provider)
+
+    agent.ask(record, "Analyze the last 12 months.")
+
+    sent_text = json.dumps(provider.calls[0])
+    assert "2024-01-01" in sent_text
+    assert "2024-08-31" in sent_text
+
+
+def test_agent_stops_early_on_duplicate_tool_calls(record):
+    """A real benchmark run showed the agent repeating identical tool calls and
+    eventually just hitting the hard iteration cap with no answer at all. Duplicate
+    calls should instead trigger an early, graceful stop — using far fewer provider
+    round-trips than the hard cap, and (when the model cooperates) a real answer."""
+    same_call = ProviderResponse(
+        content=None,
+        tool_calls=[ToolCall(id="call_x", name="profile_dataset", arguments={})],
+    )
+    script = [
+        same_call,  # executed for real
+        same_call,  # exact duplicate -> triggers the stagnant-round stop
+        ProviderResponse(content="Based on what I already found, here is the summary."),
+    ]
+    provider = MockProvider(script)
+    agent = DataAnalystAgent(provider)
+
+    result = agent.ask(record, "Keep asking the same thing")
+
+    # Only ONE real tool execution should be recorded — the duplicate must not re-run.
+    assert len(result["tool_calls"]) == 1
+    # Stops after 3 provider round-trips (2 duplicate attempts + 1 forced final answer),
+    # nowhere near the 10-iteration hard cap.
+    assert len(provider.calls) == 3
+    assert result["answer"] == "Based on what I already found, here is the summary."
+
+    # The forced final call must have gone out with no tools (so the model can't just
+    # request yet another duplicate instead of answering).
+    assert provider.tools_per_call[-1] == []

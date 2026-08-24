@@ -1,0 +1,111 @@
+# Roadmap — Wave Overview + Proposed Wave 1 Tasks
+
+Status: Wave 0 (audit) complete. Wave 1 tasks below are **proposed, not launched** — no
+subagent has been started. Awaiting user go-ahead per the Wave 0 rule ("Wave 0
+tugamaguncha hech qanday feature implement qilinmaydi").
+
+## Wave overview (confirmed against the audit)
+
+| Wave | Teams | Status |
+|---|---|---|
+| 0 | Audit (this document set) | ✅ Complete |
+| 1 | DATA-ARCHITECT, SQL-ENGINEER, LARGE-DATA, STATISTICS-ENGINEER, QA, SECURITY | Proposed below |
+| 2 | EDA, FORECASTING, ADVANCED-ANALYTICS, VISUALIZATION, BUSINESS-ANALYTICS | Not yet planned in detail — depends on Wave 1 output |
+| 3 | AGENT-ARCHITECT, TOOLING, REASONING/VALIDATION, CONTEXT/TOKEN | Not yet planned — note: agent.py/tool_router.py already exist and work; this wave *extends* them, doesn't replace |
+| 4 | PERFORMANCE, SECURITY, DEVOPS, REPORTING, DOCUMENTATION | Not yet planned |
+| 5 | BENCHMARK (full suite) | Not yet planned — should absorb this session's 7-question run as its seed |
+
+## Proposed Wave 1 tasks
+
+Each ready to hand to a subagent once approved. Format follows the reporting contract
+from the architecture spec (TASK/OWNER/... at completion) but these are task
+*assignments*, not completion reports.
+
+---
+
+**TASK: Data contracts (`DataSource`, `Dataset`, `Table`, `Column`, `Schema`,
+`QueryResult`, `DataProfile`)**
+OWNER: DATA-ARCHITECT
+FILES: new `backend/app/data/` package (contracts only — pydantic models / dataclasses,
+no implementation logic yet)
+DEPENDS ON: nothing (foundational)
+BLOCKS: SQL-ENGINEER, LARGE-DATA-ENGINEER, DATA-VALIDATION-ENGINEER
+ACCEPTANCE: existing `DatasetRecord`/`DatasetStore` (current in-memory CSV/XLSX model)
+must fit the new contracts without breaking any of the 86 existing tests — this is an
+abstraction layer *above* the current storage, not a replacement of it in Wave 1.
+NOTES: Decision #3 in `decisions.md` (DuckDB/SQLite first) should inform the `DataSource`
+shape so SQL-ENGINEER doesn't need a redesign later.
+
+---
+
+**TASK: SQL layer — generation, validation, read-only execution (DuckDB + SQLite, per
+`decisions.md`)**
+OWNER: SQL-ENGINEER
+FILES: new `backend/app/sql/` package; extends `backend/requirements.txt` with
+`duckdb` (SQLite needs no extra dependency — stdlib `sqlite3`)
+DEPENDS ON: DATA-ARCHITECT's contracts (can start against a stub, integrate once real)
+ACCEPTANCE: read-only enforcement is non-negotiable (no INSERT/UPDATE/DELETE/DDL can
+execute, tested with adversarial inputs); JOIN/CTE/window-function/aggregation support;
+`EXPLAIN` support for cost visibility before execution.
+SECURITY REVIEW REQUIRED before integration (SQL injection is the primary risk this
+introduces to a system that currently has none).
+
+---
+
+**TASK: Large-data handling (chunking, sampling, pushdown, memory control)**
+OWNER: LARGE-DATA-ENGINEER
+FILES: new `backend/app/large_data/` package
+DEPENDS ON: DATA-ARCHITECT's contracts
+ACCEPTANCE: must define and hit concrete benchmarks at 100K / 1M / 10M row scale (the
+current system has *never* been tested past 4,000 rows — this is the first real data
+point, not a regression check). Memory ceiling must be explicit and enforced, not
+"whatever fits."
+
+---
+
+**TASK: Statistical testing (t-test, chi-square, ANOVA, confidence intervals, effect
+size, regression)**
+OWNER: STATISTICS-ENGINEER
+FILES: new `backend/app/tools/hypothesis.py`, `backend/app/tools/regression.py`;
+extends `backend/requirements.txt` with `statsmodels` (pulls in `scipy`), per
+`decisions.md` — same dependency Wave 2's FORECASTING-ENGINEER will reuse for
+ARIMA/ETS, so add it once here rather than twice.
+DEPENDS ON: nothing structural — can start immediately
+ACCEPTANCE: same discipline as every existing tool — deterministic Python/SciPy
+computation only, LLM never computes a p-value itself (per the project's core "LLM
+never invents numbers" rule, `docs/agent-tools.md`). Every new tool needs unit tests
+with hand-checked expected values, same pattern as `backend/tests/test_*.py`.
+
+---
+
+**TASK: QA infrastructure for the new subsystems**
+OWNER: QA-ENGINEER
+FILES: `backend/tests/conftest.py` (extend, don't rewrite), new fixtures for
+DB-backed tests (SQL-ENGINEER) and large-data tests (LARGE-DATA-ENGINEER)
+DEPENDS ON: DATA-ARCHITECT contracts (for fixture shapes)
+ACCEPTANCE: every Wave 1 deliverable ships with tests before being marked complete —
+per Rule 1 ("Hech qachon test o'tmasdan feature'ni complete deb hisoblamaydi"). No
+existing test may be weakened or deleted to make a new one pass.
+
+---
+
+**TASK: Security review of the SQL layer + prompt-injection assessment**
+OWNER: SECURITY-ENGINEER
+FILES: review only (no writes) on SQL-ENGINEER's new package; new
+`backend/tests/test_sql_security.py` if SQL-ENGINEER doesn't already cover it
+DEPENDS ON: SQL-ENGINEER's first draft
+ACCEPTANCE: must explicitly test SQL injection resistance and confirm read-only
+enforcement can't be bypassed (parameterized queries, no string-concatenated user
+input, no DDL/DML verbs reachable). Also: formally assess the prompt-injection gap this
+audit flagged (adversarial cell content reaching the LLM's context via tool results) —
+decide whether it's in scope for Wave 1 or explicitly deferred with a documented reason.
+
+---
+
+## What happens after Wave 1
+
+Once these six land (with passing tests, security review, and no regression on the
+existing 86-test suite + the 7-question benchmark), Wave 2 planning happens against
+*actual* DATA-ARCHITECT contracts rather than the proposal in this document — the
+detailed Wave 2 task list is intentionally not written yet, per the wave-based
+development rule (don't plan five waves deep before wave one has landed).

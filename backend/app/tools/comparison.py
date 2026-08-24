@@ -28,6 +28,8 @@ def compare_periods(
         raise ToolExecutionError(f"Unsupported aggregation '{agg_func}'. Use one of {sorted(_AGG_FUNCS)}.")
 
     dates = pd.to_datetime(working[date_column], errors="coerce")
+    available_min = dates.min()
+    available_max = dates.max()
 
     def _slice(start: str, end: str) -> pd.Series:
         start_ts, end_ts = pd.to_datetime(start), pd.to_datetime(end)
@@ -47,12 +49,67 @@ def compare_periods(
         delta = round(current_val - previous_val, 4)
         pct_change = round((delta / previous_val) * 100, 2) if previous_val else None
 
+    current_coverage = _coverage_note(current_start, current_end, available_min, available_max, "current")
+    previous_coverage = _coverage_note(previous_start, previous_end, available_min, available_max, "previous")
+
     return {
         "current_period": {"start": current_start, "end": current_end, "value": current_val, "n": int(len(current))},
         "previous_period": {"start": previous_start, "end": previous_end, "value": previous_val, "n": int(len(previous))},
         "delta": delta,
         "pct_change": pct_change,
         "agg_func": agg_func,
+        "dataset_date_coverage": {
+            "min": available_min.strftime("%Y-%m-%d") if pd.notna(available_min) else None,
+            "max": available_max.strftime("%Y-%m-%d") if pd.notna(available_max) else None,
+        },
+        "current_period_coverage_warning": current_coverage,
+        "previous_period_coverage_warning": previous_coverage,
+    }
+
+
+def _coverage_note(
+    requested_start: str,
+    requested_end: str,
+    available_min: pd.Timestamp,
+    available_max: pd.Timestamp,
+    label: str,
+) -> dict | None:
+    """Flags when a requested period isn't fully backed by real data, instead of
+    silently computing a value over whatever partial data happens to fall in range."""
+    if pd.isna(available_min) or pd.isna(available_max):
+        return None
+
+    req_start = pd.to_datetime(requested_start)
+    req_end = pd.to_datetime(requested_end)
+    requested_days = (req_end - req_start).days + 1
+
+    overlap_start = max(req_start, available_min)
+    overlap_end = min(req_end, available_max)
+
+    if overlap_start > overlap_end:
+        return {
+            "full_coverage": False,
+            "coverage_pct": 0.0,
+            "note": (
+                f"No data exists for the requested {label} period ({requested_start} to {requested_end}) at "
+                f"all — the dataset only covers {available_min.date()} to {available_max.date()}."
+            ),
+        }
+
+    covered_days = (overlap_end - overlap_start).days + 1
+    if covered_days >= requested_days:
+        return None
+
+    coverage_pct = round(covered_days / requested_days * 100, 1)
+    return {
+        "full_coverage": False,
+        "coverage_pct": coverage_pct,
+        "note": (
+            f"Requested {label} period ({requested_start} to {requested_end}, {requested_days} days) is only "
+            f"{coverage_pct}% covered by actual data — the dataset spans {available_min.date()} to "
+            f"{available_max.date()}. This period's figures reflect partial data only and should not be "
+            f"presented as a full-period comparison without saying so."
+        ),
     }
 
 

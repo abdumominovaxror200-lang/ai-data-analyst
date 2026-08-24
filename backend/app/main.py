@@ -49,6 +49,17 @@ async def tool_error_handler(request: Request, exc: ToolExecutionError) -> JSONR
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    # Last-resort safety net: any exception type we didn't anticipate (a bug, an
+    # unexpected third-party error, ...) must still produce a clean JSON response, never
+    # a raw traceback or Python exception text leaking to the client. Full detail goes
+    # to the server log only. More specific handlers above (and FastAPI's own
+    # HTTPException handling) take precedence over this one.
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "An unexpected error occurred. Please try again."})
+
+
 app.include_router(routes_health.router, prefix="/api", tags=["health"])
 app.include_router(routes_datasets.router, prefix="/api", tags=["datasets"])
 app.include_router(routes_analysis.router, prefix="/api", tags=["analysis"])

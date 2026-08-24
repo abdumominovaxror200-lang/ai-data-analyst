@@ -26,7 +26,22 @@ def generate_business_insights(df: pd.DataFrame, filters: list[dict] | None = No
         except ToolExecutionError:
             continue
         if result["anomaly_count"] > 0:
-            anomaly_findings.append({"column": col, **result})
+            # Summary only — deliberately drop the raw `anomalies` row list. This bundle
+            # spans every numeric column at once, so including up to 50 full rows per
+            # column here (on top of what describe_data/correlation already return) was
+            # the direct cause of requests exceeding the LLM's token budget in
+            # practice. Callers who want the actual flagged rows for one column can
+            # call detect_anomalies directly for it.
+            anomaly_findings.append(
+                {
+                    "column": col,
+                    "method": result["method"],
+                    "threshold": result["threshold"],
+                    "bounds": result["bounds"],
+                    "anomaly_count": result["anomaly_count"],
+                    "anomaly_pct": result["anomaly_pct"],
+                }
+            )
 
     correlation_findings = None
     if len(numeric_cols) >= 2:

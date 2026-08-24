@@ -30,6 +30,7 @@ def _to_profile(dataset_id: str, filename: str, uploaded_at: datetime, df: pd.Da
         boolean_columns=raw["boolean_columns"],
         missing_total=raw["missing_total"],
         duplicate_rows=raw["duplicate_rows"],
+        date_ranges=raw["date_ranges"],
     )
 
 
