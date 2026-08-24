@@ -10,6 +10,39 @@
 | Agent has duplicate-call detection + stagnation early-stop, `MAX_TOOL_ITERATIONS=10` | A real benchmark run showed the agent burning all 6 iterations on repeated identical calls with no final answer; fixed and verified against real Groq traffic | This session |
 | System prompt requires explicit constraint-mismatch disclosure (row count, date coverage, missing columns) rather than silent substitution | A real benchmark run showed the agent silently analyzing a 4,000-row dataset against a question describing a 10-million-row database, without saying so | This session |
 
+## Wave 1 operational findings (for whoever runs Wave 2+)
+
+- **Worktree-isolated subagents do not auto-commit.** All 5 agents that got a real
+  worktree left their work as *uncommitted* changes in that worktree's working
+  directory — `git merge <branch>` found nothing to merge ("already up to date")
+  because there was no commit on the branch. The orchestrator integrated by copying
+  files directly from each worktree into main and committing there. Instruct future
+  agents explicitly to `git add` + `git commit` inside their own worktree before
+  reporting done, or budget for the orchestrator to do the copy-and-commit step.
+- **Worktrees branched from an older commit than intended.** All 6 Wave 1 worktrees
+  were created from `51759f8` (the initial commit), not `ad1539f` (the P0/P1-fixes +
+  Wave-0-audit commit that was HEAD at the moment the agents were launched). Effect:
+  DATA-ARCHITECT and STATISTICS-ENGINEER both independently noticed and correctly
+  flagged that `profile_dataset`/`compare_periods` in their worktree lacked fields
+  the Wave 0 audit doc claimed existed (`date_ranges`, `text_columns`, per-column
+  `min_date`/`max_date`, coverage warnings) — they were seeing pre-fix code. This
+  was reconciled at integration time (see `completed_tasks.md`) rather than being a
+  real bug in either agent's work. **Lesson**: don't assume a subagent worktree is
+  based on "whatever HEAD is right now" — verify with `git log` in the worktree
+  before trusting an agent's "existing behavior" observations at face value, and
+  expect to reconcile format drift for anything the orchestrator changed on main
+  after Wave 0 but before/during Wave 1.
+- **One agent's worktree was never created at all** (SQL-ENGINEER) — it worked
+  directly in the main checkout instead. No existing tracked file was damaged
+  (verified via `git status` showing only new/untracked files), but this is a real
+  isolation failure the orchestrator had to detect after the fact, not something
+  the agent could have known. Its stray debug artifacts (`backend/evil.db`,
+  `backend/out.csv`) needed manual cleanup rather than being excluded by worktree
+  boundaries. **Lesson**: after any agent reports completion, run `git worktree
+  list` and diff against the expected worktree set before trusting that isolation
+  actually held — don't assume the `isolation: "worktree"` parameter always
+  succeeds silently.
+
 ## Decided (2026-08-24, by user)
 
 1. **SQL target databases for the first SQL-ENGINEER pass: DuckDB + SQLite.** Embedded,
