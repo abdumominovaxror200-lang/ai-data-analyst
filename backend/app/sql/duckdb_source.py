@@ -22,6 +22,8 @@ from .validation import (
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_ROWS = 10_000
+DEFAULT_TIMEOUT_SECONDS = 30.0
+DEFAULT_MEMORY_LIMIT = "512MB"
 
 
 class DuckDBDataSource:
@@ -66,6 +68,25 @@ class DuckDBDataSource:
     catch it. It is blocked here by (2), since COPY is not a SELECT
     statement. This means layer (2) is not optional/cosmetic — it is load
     bearing for this specific bypass.
+
+    RESOURCE LIMITS (P0 remediation — see .agent/decisions.md): two
+    independent guards against a *valid* SELECT that is simply too expensive
+    (large cross join, huge `range()`, deep subqueries) to let the row-count
+    cap alone protect against:
+
+    1. **Execution-time timeout.** A `threading.Timer` scheduled for
+       `timeout_seconds` calls `conn.interrupt()` — DuckDB's own supported
+       mechanism for cancelling a query from another thread — if the query
+       is still running when it fires; cancelled on normal completion.
+       Verified empirically to raise `duckdb.InterruptException` (a
+       `duckdb.Error` subclass) at the expected wall-clock time.
+    2. **Memory ceiling.** `memory_limit` is set via the connection `config`
+       at connect time (not a runtime `PRAGMA`, which a query cannot
+       override since PRAGMA is already blocked by the statement-type
+       check). Verified empirically: a query whose intermediate result
+       exceeds the limit fails with `RuntimeError: Could not allocate tuple
+       object!` — note this is a plain `RuntimeError`, NOT a `duckdb.Error`
+       subclass, so the except clause below must catch both.
     """
 
     engine = "duckdb"
@@ -75,8 +96,11 @@ class DuckDBDataSource:
         data: pd.DataFrame | dict[str, pd.DataFrame],
         default_table: str = "dataset",
         max_rows: int = DEFAULT_MAX_ROWS,
+        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        memory_limit: str = DEFAULT_MEMORY_LIMIT,
     ) -> None:
         self.max_rows = max_rows
+        self.timeout_seconds = timeout_seconds
         tables = {default_table: data} if isinstance(data, pd.DataFrame) else dict(data)
         if not tables:
             raise ToolExecutionError("At least one table is required.")
@@ -87,28 +111,74 @@ class DuckDBDataSource:
         tmp_dir.mkdir(parents=True, exist_ok=True)
         self._db_path = tmp_dir / f"ds_{uuid.uuid4().hex}.duckdb"
 
-        writer = duckdb.connect(str(self._db_path))
+        conn_config = {"memory_limit": memory_limit}
+
+        writer = duckdb.connect(str(self._db_path), config=conn_config)
         try:
-            for name, df in tables.items():
-                writer.register("_src", df)
-                writer.execute(f'CREATE TABLE "{name}" AS SELECT * FROM _src')
-                writer.unregister("_src")
-        finally:
+            try:
+                for name, df in tables.items():
+                    writer.register("_src", df)
+                    writer.execute(f'CREATE TABLE "{name}" AS SELECT * FROM _src')
+                    writer.unregister("_src")
+            except (duckdb.Error, RuntimeError, MemoryError) as exc:
+                # The initial load is also subject to memory_limit — a
+                # genuinely large dataset with a small configured limit can
+                # fail here, not just on a later query. Must produce the same
+                # clean error as a query-time failure, not an unhandled crash
+                # (see _execute_with_limits / _is_memory_limit_error below).
+                if _is_memory_limit_error(exc):
+                    raise ToolExecutionError(
+                        "Dataset is too large to load under the configured memory limit."
+                    ) from exc
+                raise ToolExecutionError(f"Could not load data into DuckDB: {exc}") from exc
+        except ToolExecutionError:
+            writer.close()
+            self._db_path.unlink(missing_ok=True)
+            raise
+        else:
             writer.close()
 
-        self._conn = duckdb.connect(str(self._db_path), read_only=True)
+        self._conn = duckdb.connect(str(self._db_path), read_only=True, config=conn_config)
         self._lock = threading.Lock()
         self._closed = False
+
+    def _execute_with_limits(self, fn):
+        """Runs `fn()` (a zero-arg callable performing the actual `.execute()` +
+        fetch) under the timeout watchdog, translating any resource-limit failure
+        into a clean, specific ToolExecutionError."""
+        timer = threading.Timer(self.timeout_seconds, self._conn.interrupt)
+        timer.start()
+        try:
+            return fn()
+        except duckdb.InterruptException as exc:
+            raise ToolExecutionError(
+                f"Query exceeded the {self.timeout_seconds:.0f}s time limit and was cancelled."
+            ) from exc
+        except duckdb.Error as exc:
+            if _is_memory_limit_error(exc):
+                raise ToolExecutionError(
+                    "Query exceeded the available memory limit for this session."
+                ) from exc
+            raise ToolExecutionError(_clean_error(exc)) from exc
+        except (RuntimeError, MemoryError) as exc:
+            # DuckDB's memory_limit rejection has been observed to surface as
+            # EITHER a duckdb.OutOfMemoryException (caught above) OR a plain
+            # RuntimeError from the Python binding, depending on exactly where
+            # in query execution the allocation fails — verified empirically
+            # with two different query shapes (see class docstring). Both
+            # must be caught or one shape would escape as an unhandled 500.
+            raise ToolExecutionError(
+                "Query exceeded the available memory limit for this session."
+            ) from exc
+        finally:
+            timer.cancel()
 
     def execute_query(self, sql: str) -> QueryResult:
         self._check_open()
         cleaned = self._validate(sql)
         wrapped = f"SELECT * FROM ({cleaned}) AS _query_result LIMIT {self.max_rows + 1}"
         with self._lock:
-            try:
-                df = self._conn.execute(wrapped).fetchdf()
-            except duckdb.Error as exc:
-                raise ToolExecutionError(_clean_error(exc)) from exc
+            df = self._execute_with_limits(lambda: self._conn.execute(wrapped).fetchdf())
 
         truncated = len(df) > self.max_rows
         if truncated:
@@ -125,13 +195,13 @@ class DuckDBDataSource:
         cost visibility before a potentially expensive query runs."""
         self._check_open()
         cleaned = self._validate(sql)
+
+        def _run():
+            result = self._conn.execute(f"EXPLAIN {cleaned}")
+            return [d[0] for d in result.description], result.fetchall()
+
         with self._lock:
-            try:
-                result = self._conn.execute(f"EXPLAIN {cleaned}")
-                columns = [d[0] for d in result.description]
-                rows = result.fetchall()
-            except duckdb.Error as exc:
-                raise ToolExecutionError(_clean_error(exc)) from exc
+            columns, rows = self._execute_with_limits(_run)
         return QueryResult(
             columns=columns,
             rows=[dict(zip(columns, r)) for r in rows],
@@ -192,3 +262,8 @@ def _clean_error(exc: Exception) -> str:
     """Strip DuckDB's multi-line caret/context block, keep the useful part."""
     first_line = str(exc).splitlines()[0] if str(exc) else exc.__class__.__name__
     return f"SQL error: {first_line}"
+
+
+def _is_memory_limit_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "out of memory" in text or "could not allocate" in text
