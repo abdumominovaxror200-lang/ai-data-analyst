@@ -1,0 +1,37 @@
+# Python
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Env (never commit real secrets — only .env.example files are tracked)
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+
+# Runtime data (uploaded datasets, generated at runtime — not source)
+backend/storage/
+
+# Node / frontend build
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
