@@ -113,42 +113,35 @@ development rule (don't plan five waves deep before wave one has landed).
 
 ## Wave 1 done. Two concrete follow-ups surfaced during integration.
 
-Not full Wave 2 planning (that still waits, per the rule above) — these are small,
-well-scoped, high-priority fixes to real gaps found while reviewing Wave 1's output.
-Both are cheap and both close a *confirmed* (not hypothetical) issue.
+Both tasks below are **✅ COMPLETE** (closed this session, before any Wave 2 work
+started, per explicit instruction). Kept here as a record of what was required and
+what closed it — see `decisions.md` for the full detail and
+`backend/docs/security/` for the artifacts.
 
 ---
 
-**TASK: SQL query timeout / resource-limit enforcement**
-OWNER: SQL-ENGINEER (same file owner, extending its own package)
-FILES: `backend/app/sql/duckdb_source.py`, `backend/app/sql/sqlite_source.py`
-WHY: orchestrator's cross-review against `backend/docs/security/sql-layer-threat-model.md`
-section 4 found 8/9 checklist items met — this is the missing one. Neither backend
-currently caps execution time or memory; only output row count is capped. A
-valid-but-expensive `SELECT` (large cross join, huge `range()`, deep subqueries)
-can still consume unbounded CPU/memory before returning anything to truncate.
-ACCEPTANCE: a deliberately expensive query is rejected/interrupted within a
-configurable time budget (DuckDB supports query cancellation via a watchdog
-thread + `conn.interrupt()`; SQLite via `set_progress_handler`), with a test proving
-it, on both engines.
+**TASK: SQL query timeout / resource-limit enforcement — ✅ COMPLETE**
+OWNER: orchestrator (direct implementation, not a subagent — small and well-scoped
+enough not to warrant the worktree/review overhead after Wave 1's isolation issues)
+FILES: `backend/app/sql/duckdb_source.py`, `backend/app/sql/sqlite_source.py`,
+`backend/tests/test_sql_resource_limits.py` (new)
+RESULT: execution-time timeout + memory ceiling on both engines, 12 new tests,
+9/9 threat-model checklist items now met (was 8/9). 158/158 SQL tests passing.
+See `decisions.md` for implementation subtleties found along the way (LIMIT
+pushdown defeating naive timeout tests; DuckDB memory failures surfacing as two
+different exception types; the initial data load also needing the same guard as
+query execution).
 
 ---
 
-**TASK: "Tool data is not instructions" system-prompt boundary**
-OWNER: AGENT-ARCHITECT (agent.py's sole writer — no agent has this role yet; assign
-before/alongside Wave 3, or sooner given the finding below)
-FILES: `backend/app/agent/agent.py` (the `SYSTEM_PROMPT` constant)
-WHY: SECURITY-ENGINEER built a real, passing PoC (`backend/tests/test_prompt_injection_gap.py`)
-proving adversarial text in a dataset's categorical/text column reaches the LLM
-verbatim through 4 existing tools, both at the tool level and through the real
-`DataAnalystAgent` loop. This was an open question in the Wave 0 audit; it is now a
-confirmed, reproducible finding. SQL-ENGINEER's read-only query layer landing this
-same wave is exactly the kind of capability-expansion that should trigger
-prioritizing this — the next tool with any write/network/side-effect capability
-makes this urgent rather than low-priority.
-ACCEPTANCE: add an explicit instruction to `SYSTEM_PROMPT` that tool-result content
-is untrusted data, never instructions, regardless of what it contains — low cost,
-no architecture change. `test_prompt_injection_gap.py`'s existing tests document the
-reachability; a follow-up test should confirm the boundary instruction is present
-(can't fully prove an LLM obeys a prompt instruction via unit test, but the
-instruction's presence and the tool-level facts remain regression-tested either way).
+**TASK: "Tool data is not instructions" system-prompt boundary — ✅ COMPLETE**
+OWNER: orchestrator (direct implementation — same reasoning as above)
+FILES: `backend/app/agent/agent.py` (`SYSTEM_PROMPT` + new `_wrap_tool_payload`),
+`backend/tests/test_prompt_injection_mitigation.py` (new),
+`backend/docs/security/prompt-injection-trust-boundary.md` (new)
+RESULT: system-prompt trust-boundary instruction + per-tool-result untrusted-data
+marker. 14 new automated tests (cell-value, column-name, and SQL-result/GROUP-BY
+vectors) + one live verification against the real Groq LLM with the exact
+adversarial payload from the original PoC — model summarized the data correctly
+without complying with the embedded instruction. Text-column analysis remains
+fully functional; nothing was stripped or disabled. 406/406 full suite passing.

@@ -131,8 +131,9 @@ Groq integration were verified manually in this session, not via a repeatable su
 | Generic exception → clean JSON (no traceback leak) | ✅ global FastAPI handler |
 | Provider error sanitization (no internal IDs/jargon to client) | ✅ tested with the real leaked string |
 | Authentication / authorization | ❌ none — any network-reachable client can upload/query |
-| SQL injection defense | N/A — no SQL layer exists yet |
-| Prompt-injection defense (malicious cell content) | ⚠️ **gap, not yet addressed** — tool results (category names, anomaly rows, filter previews) are inserted into the LLM's context verbatim as `tool` messages. A crafted dataset with adversarial text in a categorical/text column (e.g. a "product" value containing instruction-like text) could attempt to influence the model's behavior. Not tested, not mitigated. |
+| SQL injection / write defense (`app/sql/`, added Wave 1) | ✅ layered: engine-level read-only connection (DuckDB `read_only=True`, SQLite `set_authorizer`) + parser-based statement-type/single-statement validation + function denylist for file-reading table functions. 146 adversarial tests across 10 attack categories, all blocked. One documented, accepted-risk gap: the file-reading-function block is a denylist, not an allowlist (see `backend/docs/security/sql-layer-threat-model.md`). |
+| SQL resource-exhaustion / DoS defense | ✅ (P0 remediation, closed this session) — execution-time timeout (DuckDB: watchdog thread + `conn.interrupt()`; SQLite: `set_progress_handler`) and a memory ceiling (DuckDB: connection-level `memory_limit` config, applies to data load too, not just queries; SQLite: best-effort `PRAGMA soft_heap_limit`, process-global). 12 tests verifying both engines under a deliberately expensive query, normal queries unaffected, read-only guarantees undisturbed. |
+| Prompt-injection defense (malicious cell/column content) | ✅ (P0 remediation, closed this session) — see `backend/docs/security/prompt-injection-trust-boundary.md`. System-prompt trust-boundary instruction + a per-message "untrusted data" wrapper around every tool result. Verified both by automated tests (14 new, covering cell-value, column-name, and SQL-result/GROUP-BY injection vectors) and by one live run against the real Groq LLM with the exact adversarial payload — the model summarized the data correctly without obeying the embedded instruction. Residual risk: prompt-level mitigation is not a hard technical guarantee; revisit when any tool gains write/network side effects (see the doc's "Blast radius" section). |
 | Rate limiting / abuse protection on the API itself | ❌ none (only the upstream LLM provider's own rate limit applies) |
 | Read-only enforcement at a data-source level | N/A — no writable data source exists yet; relevant once SQL lands |
 
@@ -187,7 +188,7 @@ tool-providing team needs to integrate with without stepping on each other — s
 | QA-ENGINEER | 86 pytest tests, no e2e automation | Solid unit coverage; no browser/e2e suite, no load tests |
 | DATA-VALIDATION-ENGINEER | ad hoc (this session's manual cross-checks against independent pandas calls) | No systematic ground-truth benchmark harness yet |
 | BENCHMARK-ENGINEER | 7-question manual benchmark run this session (documented in conversation, not in a file) | No repeatable benchmark suite/runner exists in the repo |
-| SECURITY-ENGINEER | upload/path/CORS/error-sanitization controls | No auth, no prompt-injection mitigation, no SQL-injection defense (N/A until SQL exists) |
+| SECURITY-ENGINEER | upload/path/CORS/error-sanitization controls, plus (as of this session) SQL injection/read-only/resource-exhaustion defense and prompt-injection mitigation — see section 7 | No authentication/authorization still |
 | PERFORMANCE-ENGINEER | ad hoc timing this session | No formal benchmark harness, no tests beyond 4,000 rows |
 | DEVOPS-ENGINEER | none | No Dockerfile, no CI/CD, no monitoring/health-check beyond `/api/health` |
 | DOCUMENTATION-ENGINEER | README.md, docs/architecture.md, docs/agent-tools.md, reports/ | Good foundation at MVP scale; will need updates as new capabilities land |
