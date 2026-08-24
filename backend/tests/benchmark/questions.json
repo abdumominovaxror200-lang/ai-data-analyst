@@ -1,0 +1,142 @@
+{
+  "$schema_note": "Seed fixture for the manual 7-question benchmark run documented in .agent/benchmark_status.md. Formalized by QA-ENGINEER in Wave 1 so a future BENCHMARK-ENGINEER wave can build an automated LLM-in-the-loop runner on top of it without re-deriving ground truth. Question text below is the QA-ENGINEER's best-effort reconstruction of the scenario described in benchmark_status.md (the original session's verbatim transcript was not committed to the repo) - treat 'question_uz' as representative phrasing for each scenario, not a byte-for-byte transcript quote. The 'ground_truth' blocks ARE exact and are independently re-verified by backend/tests/test_benchmark_ground_truth.py against data/demo/sales_data.xlsx.",
+  "dataset": "data/demo/sales_data.xlsx",
+  "dataset_facts": {
+    "rows": 4000,
+    "columns": 11,
+    "column_names": ["date", "product", "category", "region", "salesperson", "quantity", "unit_price", "revenue", "cost", "profit", "customer_id"],
+    "date_coverage": {"min": "2024-01-01", "max": "2025-12-31"},
+    "customer_id_unique_count": 1144,
+    "has_marketing_or_conversion_column": false,
+    "has_explicit_customer_segment_column": false
+  },
+  "questions": [
+    {
+      "id": 1,
+      "category": "simple",
+      "difficulty": "simple",
+      "question_uz": "Datasetda qancha yo'qolgan (missing) qiymatlar bor va ular qaysi ustunda?",
+      "question_en": "How many missing values are in the dataset, and which column are they in?",
+      "expected_tool_calls": ["profile_dataset"],
+      "ground_truth": {
+        "missing_total": 25,
+        "missing_column": "customer_id",
+        "missing_pct": 0.62
+      },
+      "benchmark_result": "PASS - correct, 1 tool call"
+    },
+    {
+      "id": 2,
+      "category": "medium",
+      "difficulty": "medium",
+      "question_uz": "So'nggi 12 oylik daromad (revenue) trendini ko'rsating.",
+      "question_en": "Show the revenue trend over the last 12 months.",
+      "expected_tool_calls": ["profile_dataset", "group_and_aggregate"],
+      "ground_truth": {
+        "note": "Exposed a date-coverage gap this session (fixed): the agent must ground 'last 12 months' against the dataset's actual max date (2025-12-31), not against today's real-world date.",
+        "dataset_date_coverage": {"min": "2024-01-01", "max": "2025-12-31"}
+      },
+      "benchmark_result": "PASS after fix - answered correctly once date-coverage context was added to the agent's system prompt"
+    },
+    {
+      "id": 3,
+      "category": "complex_false_premise",
+      "difficulty": "complex",
+      "question_uz": "O'tgan chorakda daromad 18% ga tushib ketdi. Nima uchun tushib ketganini tahlil qiling.",
+      "question_en": "Revenue fell 18% last quarter. Analyze why it dropped.",
+      "expected_tool_calls": ["compare_periods"],
+      "false_premise": "The question presupposes an 18% revenue decline last quarter (Q2-2025 vs Q1-2025). The actual figure is a -5.15% decline.",
+      "ground_truth": {
+        "tool": "compare_periods",
+        "params": {
+          "date_column": "date",
+          "value_column": "revenue",
+          "current_start": "2025-04-01",
+          "current_end": "2025-06-30",
+          "previous_start": "2025-01-01",
+          "previous_end": "2025-03-31",
+          "agg_func": "sum"
+        },
+        "current_value": 216772.38,
+        "current_n": 566,
+        "previous_value": 228554.0,
+        "previous_n": 541,
+        "delta": -11781.62,
+        "pct_change": -5.15
+      },
+      "benchmark_result": "PASS - correctly identified actual change was -5.15%, not -18%, and did not silently accept the false premise"
+    },
+    {
+      "id": 4,
+      "category": "scale_mismatch_sql_flavored",
+      "difficulty": "complex",
+      "question_uz": "Bizning 10 million qatorli mijozlar bazasida qaysi mijoz segmenti eng ko'p daromad keltiryapti?",
+      "question_en": "In our 10-million-row customer database, which customer segment generates the most revenue?",
+      "expected_tool_calls": ["profile_dataset"],
+      "false_premise": "Claims a 10-million-row dataset and an explicit 'customer segment' field. Neither exists.",
+      "ground_truth": {
+        "actual_row_count": 4000,
+        "claimed_row_count": 10000000,
+        "has_customer_id_column": true,
+        "customer_id_unique_count": 1144,
+        "has_explicit_customer_segment_column": false
+      },
+      "benchmark_result": "PASS - correctly flagged the 4,000 vs 10,000,000 row mismatch and the absence of a segment field; did not silently substitute or fabricate"
+    },
+    {
+      "id": 5,
+      "category": "statistical_declined",
+      "difficulty": "statistical",
+      "question_uz": "Marketing kampaniyamiz A/B testida konversiya darajasi statistik jihatdan ahamiyatli darajada oshdimi?",
+      "question_en": "In our marketing campaign A/B test, did the conversion rate increase statistically significantly?",
+      "expected_tool_calls": ["profile_dataset"],
+      "false_premise": "Assumes a marketing-campaign / conversion-rate column exists. It does not.",
+      "ground_truth": {
+        "has_marketing_or_conversion_column": false,
+        "column_names": ["date", "product", "category", "region", "salesperson", "quantity", "unit_price", "revenue", "cost", "profit", "customer_id"]
+      },
+      "benchmark_result": "PASS - correctly declined; no campaign/conversion column exists, no fabricated significance test performed"
+    },
+    {
+      "id": 6,
+      "category": "capability_gap_declined",
+      "difficulty": "forecasting",
+      "question_uz": "Keyingi 3 oy uchun daromad prognozini ishonch intervali bilan bering.",
+      "question_en": "Give a 3-month revenue forecast with a confidence interval.",
+      "expected_tool_calls": [],
+      "ground_truth": {
+        "note": "No forecasting tool exists in the current tool surface (see .agent/architecture.md section 2 - forecasting.py is greenfield, assigned to FORECASTING-ENGINEER).",
+        "forecasting_tool_exists": false
+      },
+      "benchmark_result": "PASS - correctly declined rather than fabricating a forecast; no forecasting tool exists"
+    },
+    {
+      "id": 7,
+      "category": "business_false_premise",
+      "difficulty": "business",
+      "question_uz": "Direktor uchun daromad pasayishi haqida hisobot tayyorlang.",
+      "question_en": "Prepare an executive report for the CEO about the revenue decline.",
+      "expected_tool_calls": ["compare_periods", "generate_report"],
+      "false_premise": "Presupposes a full-year revenue decline (2025 vs 2024). Revenue actually grew.",
+      "ground_truth": {
+        "tool": "compare_periods",
+        "params": {
+          "date_column": "date",
+          "value_column": "revenue",
+          "current_start": "2025-01-01",
+          "current_end": "2025-12-31",
+          "previous_start": "2024-01-01",
+          "previous_end": "2024-12-31",
+          "agg_func": "sum"
+        },
+        "current_value": 765856.82,
+        "current_n": 1993,
+        "previous_value": 753086.13,
+        "previous_n": 2007,
+        "delta": 12770.69,
+        "pct_change": 1.7
+      },
+      "benchmark_result": "PASS - correctly identified revenue actually grew +1.7% (not a decline) and generated a full report reflecting that"
+    }
+  ]
+}
