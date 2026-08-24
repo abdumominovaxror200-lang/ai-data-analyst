@@ -1,5 +1,58 @@
 # Completed Tasks
 
+## Phase 3A — TOOLING INTEGRATION — COMPLETE
+- OWNER: orchestrator (direct — mechanical, well-scoped registration work, no
+  subagent launched per explicit user instruction)
+- STATUS: COMPLETE, committed.
+- FILES_CHANGED: `backend/app/agent/tool_router.py` (22 new tool schemas +
+  handlers + a new SQL bridge — `_run_sql_query`/`_explain_sql_query` — added
+  directly in this file, the existing `app/sql/` engines were NOT modified),
+  `backend/tests/test_tool_registration.py` (new, 63 tests),
+  `.agent/tool_inventory.md` (new — full per-tool contract/security/failure-mode
+  documentation for all 32 registered tools).
+- IMPLEMENTATION: registered every already-built, already-tested Wave 1 + Wave 2
+  analytical tool that was sitting unreachable from the LLM: 5 hypothesis-testing
+  tools, `linear_regression` + `regression_diagnostics` + `outlier_analysis_multivariate`,
+  4 forecasting tools, `kmeans_cluster` + `pca_reduce`, 3 segmentation tools
+  (RFM/cohort/churn), 3 EDA tools (`automated_eda`/`analyze_cardinality`/
+  `analyze_distributions`), and 2 new SQL-bridge tools (`run_sql_query`/
+  `explain_sql_query` — the only genuinely new code this pass, since the SQL
+  engines had no existing agent-facing entry point). `agent.py`'s core loop was
+  NOT modified — registration alone required no change to it (dedup, stagnation-stop,
+  and the `[UNTRUSTED DATA]` wrapping are generic over any tool). 10 pre-existing +
+  22 newly wired = 32 total tools.
+  Deliberately NOT registered: `app/large_data/**` (ingestion-layer, operates on
+  file paths not loaded DataFrames, and isn't wired into the upload path either —
+  see `tool_inventory.md`) and `app/data/**` (internal contracts, not LLM-facing).
+- SECURITY: no bypass of any existing control. SQL bridge reuses the unmodified
+  `DuckDBDataSource`/`SQLiteDataSource` read-only engines verbatim; adds one new,
+  tool-specific constraint (`_SQL_TOOL_MAX_ROWS=500`, tighter than the engines'
+  own 10,000-row default) to bound payload size back to the LLM, per the
+  project's documented 413-payload history. Every tool result — new or
+  pre-existing — is still wrapped by `agent.py`'s untrusted-data marker with no
+  change to that mechanism.
+- TESTS: baseline 505 passed → 568 passed (505 + 63 new, zero regressions),
+  independently re-run by the orchestrator. New tests prove: every schema has a
+  matching handler and vice versa (no orphans), every schema is well-formed,
+  missing/invalid arguments are rejected for a sample of new tools, 8 dangerous
+  SQL statements are blocked on both engines via the new bridge, the SQL
+  row-cap is real (verified truncation), new tool results carry the
+  untrusted-data marker through the full agent loop, and — the item 7
+  integration test — the agent can discover *and actually execute* a
+  previously-unreachable Wave 2 tool (`forecast`) end-to-end via a scripted
+  `MockProvider`, plus three more tool classes (stats/clustering/SQL) each
+  independently reachable through the same loop.
+- COMMIT: `(see git log — "Phase 3A: register Wave 1+2 tools into tool_router.py")`.
+- REMAINING ARCHITECTURAL BLOCKER: none for this phase's stated goal (make
+  built capabilities reachable). Two things intentionally deferred, not blocking:
+  (1) the tool catalog is now 32 entries offered to a single flat
+  function-calling completion — fine for Phase 3A's goal, but the
+  reasoning-layer's planner (Phase 3B) will need to filter/rank this catalog
+  rather than relying on raw LLM free choice as today, per
+  `reasoning-layer-design.md`; (2) `app/large_data/` is still not reachable by
+  either the upload path or the agent — registering it needs an ingestion-path
+  decision first, not just a tool-router entry.
+
 ## Wave 2 — 3 of 7 launched agents landed; remaining 4 put ON HOLD by user pivot
 - FORECASTING-ENGINEER: COMPLETE, integrated (merge commit `705833b`). Worktree was
   stale (branched from the initial commit); agent self-detected via `git log`/

@@ -12,7 +12,7 @@ or alongside Wave 2.
 | 0 | Audit (this document set) | ✅ Complete |
 | 1 | DATA-ARCHITECT, SQL-ENGINEER, LARGE-DATA, STATISTICS-ENGINEER, QA, SECURITY | ✅ Complete — merged, 380/380 tests passing |
 | 2 | EDA, FORECASTING, ADVANCED-ANALYTICS, VISUALIZATION, BUSINESS-ANALYTICS, QA-PROFESSIONAL-BENCHMARK | **PARTIAL** — FORECASTING, ADVANCED-ANALYTICS, EDA-PROFILING landed (505/505 tests). VISUALIZATION, BUSINESS-ANALYTICS, DATA-QUALITY, QA-PROFESSIONAL-BENCHMARK **on hold** — user pivoted to request the reasoning-layer design (below) before more feature build-out. See `integration_status.md`. |
-| 3 | TOOLING (tool registration), then REASONING-ARCHITECT + 6 parallel reasoning-pipeline agents | **Designed, not started.** Full proposal in `reasoning-layer-design.md`. Waiting for explicit approval to launch Phase 3a. |
+| 3 | Phase 3A tool registration (✅ done), then Phase 3B: REASONING-ARCHITECT + 6 parallel reasoning-pipeline agents | **Phase 3A COMPLETE** (32 tools registered, 568/568 tests — see `completed_tasks.md`, `tool_inventory.md`). Phase 3B (the actual reasoning layer) **designed, not started** — full proposal in `reasoning-layer-design.md`. Waiting for explicit approval to launch. |
 | 4 | PERFORMANCE, SECURITY, DEVOPS, REPORTING, DOCUMENTATION | Not yet planned |
 | 5 | BENCHMARK (full suite) | Not yet planned — should absorb this session's 7-question run (now automated in `backend/tests/test_benchmark_ground_truth.py`) as its seed |
 

@@ -62,10 +62,11 @@ Wave 3 — **superseded by the detailed plan in `reasoning-layer-design.md` §11
 Summary (see that doc for the full graph):
 
 ```
-TOOLING (register the 15 unregistered Wave 1+2 tools)   ← independent prerequisite,
-       │                                                    can run any time, blocks
-       │                                                    the planner (below) from
-       │                                                    being useful
+Phase 3A: TOOLING INTEGRATION — ✅ COMPLETE (see completed_tasks.md).
+    22 previously-unregistered Wave 1+2 tools now live in tool_router.py
+    (32 total). This prerequisite is CLEARED — the planner below now has
+    the real, full tool catalog to plan against, not the original 10.
+       │
        ▼
 REASONING-ARCHITECT (contracts.py + orchestrator.py skeleton)   ← Phase 3a, sequential
        │
