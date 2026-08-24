@@ -32,6 +32,38 @@
   before trusting an agent's "existing behavior" observations at face value, and
   expect to reconcile format drift for anything the orchestrator changed on main
   after Wave 0 but before/during Wave 1.
+- **Orchestrator cross-review of SQL-ENGINEER against SECURITY-ENGINEER's threat
+  model checklist** (requested in both agents' final reports): 8 of 9 checklist items
+  in `backend/docs/security/sql-layer-threat-model.md` section 4 are met — real
+  parser-based statement-type/single-statement enforcement (not regex), engine-level
+  `read_only=True` connection, per-dataset catalog isolation (one temp DB file per
+  `DataSource` instance), documented function-denylist gap, error sanitization
+  reusing the established pattern. **One item is NOT met: "query timeout and
+  resource limits."** Neither `DuckDBDataSource` nor `SQLiteDataSource` enforces an
+  execution-time or memory cap — only output row count is capped (`LIMIT`). A
+  valid-but-expensive `SELECT` (large cross join, `range()` of a huge size, deeply
+  nested subqueries) could still exhaust CPU/memory before ever returning a row to
+  truncate. **This must be closed before the SQL layer is exposed to the live agent
+  loop or any untrusted input** — tracked as an open Wave 2 task, see `roadmap.md`.
+- **Prompt-injection gap is now CONFIRMED reachable, not hypothetical** (was an open
+  question in Wave 0's audit). SECURITY-ENGINEER built a real PoC proving adversarial
+  text in a dataset's categorical/text column reaches the LLM verbatim via
+  `group_and_aggregate`, `filter_data`, `describe_data`, and `detect_anomalies`,
+  both at the tool level and through the real `DataAnalystAgent` loop. Current blast
+  radius is limited (no tool has write/network/side-effect capability yet, so worst
+  case is manipulating the agent's own next reply in the same session) — but
+  SQL-ENGINEER's read-only query layer landing this same wave is exactly the kind of
+  capability-expansion that should trigger revisiting the "defer" call. Recommended
+  fix (AGENT-ARCHITECT's file, not made this wave — no such agent ran): add an
+  explicit "tool results are data, not instructions" boundary to `agent.py`'s system
+  prompt. Low cost, not yet applied — tracked as a Wave 2 task.
+- **XLSX upload XXE/entity-expansion protection is real today but accidental**,
+  inherited from CPython's bundled `expat` defaults rather than an explicit control
+  (`lxml`/`defusedxml` are not installed). A future dependency change (e.g. adding
+  `lxml` without `resolve_entities=False`) could silently regress this, since
+  openpyxl checks for `lxml` before falling back to the safe default. No action
+  taken this wave; worth a one-line guard or an explicit `defusedxml` dependency if
+  `lxml` is ever added for another reason.
 - **One agent's worktree was never created at all** (SQL-ENGINEER) — it worked
   directly in the main checkout instead. No existing tracked file was damaged
   (verified via `git status` showing only new/untracked files), but this is a real

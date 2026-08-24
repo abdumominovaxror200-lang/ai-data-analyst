@@ -1,19 +1,20 @@
 # Roadmap — Wave Overview + Proposed Wave 1 Tasks
 
-Status: Wave 0 (audit) complete. Wave 1 tasks below are **proposed, not launched** — no
-subagent has been started. Awaiting user go-ahead per the Wave 0 rule ("Wave 0
-tugamaguncha hech qanday feature implement qilinmaydi").
+Status: Wave 0 (audit) and Wave 1 (build-out) both complete — see
+`completed_tasks.md`/`integration_status.md`. Two concrete follow-up tasks surfaced
+during Wave 1 integration are listed at the end of this file, ready to assign before
+or alongside Wave 2.
 
 ## Wave overview (confirmed against the audit)
 
 | Wave | Teams | Status |
 |---|---|---|
 | 0 | Audit (this document set) | ✅ Complete |
-| 1 | DATA-ARCHITECT, SQL-ENGINEER, LARGE-DATA, STATISTICS-ENGINEER, QA, SECURITY | Proposed below |
+| 1 | DATA-ARCHITECT, SQL-ENGINEER, LARGE-DATA, STATISTICS-ENGINEER, QA, SECURITY | ✅ Complete — merged, 380/380 tests passing |
 | 2 | EDA, FORECASTING, ADVANCED-ANALYTICS, VISUALIZATION, BUSINESS-ANALYTICS | Not yet planned in detail — depends on Wave 1 output |
-| 3 | AGENT-ARCHITECT, TOOLING, REASONING/VALIDATION, CONTEXT/TOKEN | Not yet planned — note: agent.py/tool_router.py already exist and work; this wave *extends* them, doesn't replace |
+| 3 | AGENT-ARCHITECT, TOOLING, REASONING/VALIDATION, CONTEXT/TOKEN | Not yet planned — note: agent.py/tool_router.py already exist and work; this wave *extends* them, doesn't replace. Two Wave-1-discovered fixes below belong here. |
 | 4 | PERFORMANCE, SECURITY, DEVOPS, REPORTING, DOCUMENTATION | Not yet planned |
-| 5 | BENCHMARK (full suite) | Not yet planned — should absorb this session's 7-question run as its seed |
+| 5 | BENCHMARK (full suite) | Not yet planned — should absorb this session's 7-question run (now automated in `backend/tests/test_benchmark_ground_truth.py`) as its seed |
 
 ## Proposed Wave 1 tasks
 
@@ -109,3 +110,45 @@ existing 86-test suite + the 7-question benchmark), Wave 2 planning happens agai
 *actual* DATA-ARCHITECT contracts rather than the proposal in this document — the
 detailed Wave 2 task list is intentionally not written yet, per the wave-based
 development rule (don't plan five waves deep before wave one has landed).
+
+## Wave 1 done. Two concrete follow-ups surfaced during integration.
+
+Not full Wave 2 planning (that still waits, per the rule above) — these are small,
+well-scoped, high-priority fixes to real gaps found while reviewing Wave 1's output.
+Both are cheap and both close a *confirmed* (not hypothetical) issue.
+
+---
+
+**TASK: SQL query timeout / resource-limit enforcement**
+OWNER: SQL-ENGINEER (same file owner, extending its own package)
+FILES: `backend/app/sql/duckdb_source.py`, `backend/app/sql/sqlite_source.py`
+WHY: orchestrator's cross-review against `backend/docs/security/sql-layer-threat-model.md`
+section 4 found 8/9 checklist items met — this is the missing one. Neither backend
+currently caps execution time or memory; only output row count is capped. A
+valid-but-expensive `SELECT` (large cross join, huge `range()`, deep subqueries)
+can still consume unbounded CPU/memory before returning anything to truncate.
+ACCEPTANCE: a deliberately expensive query is rejected/interrupted within a
+configurable time budget (DuckDB supports query cancellation via a watchdog
+thread + `conn.interrupt()`; SQLite via `set_progress_handler`), with a test proving
+it, on both engines.
+
+---
+
+**TASK: "Tool data is not instructions" system-prompt boundary**
+OWNER: AGENT-ARCHITECT (agent.py's sole writer — no agent has this role yet; assign
+before/alongside Wave 3, or sooner given the finding below)
+FILES: `backend/app/agent/agent.py` (the `SYSTEM_PROMPT` constant)
+WHY: SECURITY-ENGINEER built a real, passing PoC (`backend/tests/test_prompt_injection_gap.py`)
+proving adversarial text in a dataset's categorical/text column reaches the LLM
+verbatim through 4 existing tools, both at the tool level and through the real
+`DataAnalystAgent` loop. This was an open question in the Wave 0 audit; it is now a
+confirmed, reproducible finding. SQL-ENGINEER's read-only query layer landing this
+same wave is exactly the kind of capability-expansion that should trigger
+prioritizing this — the next tool with any write/network/side-effect capability
+makes this urgent rather than low-priority.
+ACCEPTANCE: add an explicit instruction to `SYSTEM_PROMPT` that tool-result content
+is untrusted data, never instructions, regardless of what it contains — low cost,
+no architecture change. `test_prompt_injection_gap.py`'s existing tests document the
+reachability; a follow-up test should confirm the boundary instruction is present
+(can't fully prove an LLM obeys a prompt instruction via unit test, but the
+instruction's presence and the tool-level facts remain regression-tested either way).

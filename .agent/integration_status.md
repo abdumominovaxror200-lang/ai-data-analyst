@@ -1,21 +1,33 @@
 # Integration Status
 
-## Merged to main (commit b9701e5)
-- DATA-ARCHITECT — reconciled (date-range/text-column field format) and verified.
-- STATISTICS-ENGINEER — verified as-is, no reconciliation needed.
-- LARGE-DATA-ENGINEER — verified as-is, no reconciliation needed.
-- QA-ENGINEER — verified as-is, no reconciliation needed.
+## Wave 1 — COMPLETE. All 6 agents merged to main.
 
-Full regression suite after merge: **337/337 passing** (independently re-run by the
-orchestrator).
+| Commit | Agent(s) | Tests after |
+|---|---|---|
+| `b9701e5` | DATA-ARCHITECT (reconciled), STATISTICS-ENGINEER, LARGE-DATA-ENGINEER, QA-ENGINEER | 337 |
+| `04df1bd` | SQL-ENGINEER | 380 (146 of these tests were already present as uncommitted files at the b9701e5 checkpoint — see decisions.md's worktree-isolation note) |
+| `1a5d00e` | SECURITY-ENGINEER | 380 |
 
-## Not yet merged
-- SQL-ENGINEER — still running. Note: worked directly in the main checkout (its
-  worktree was never created — infrastructure issue, not the agent's fault). New
-  files present but uncommitted: `backend/app/sql/`, `backend/tests/test_sql_engine.py`,
-  `backend/tests/test_sql_security.py`. Stray debug artifacts also present
-  (`backend/evil.db`, `backend/out.csv`) — will be deleted, not committed, once the
-  agent's final report confirms what's part of the real deliverable.
-- SECURITY-ENGINEER — still running, in a proper isolated worktree.
+**Final state: 380/380 tests passing**, independently re-run by the orchestrator
+after every merge (not just trusted from agent reports). Zero regressions on the
+pre-Wave-1 baseline (86 tests) at any point.
 
-Baseline for both remaining integrations: current main (commit b9701e5, 337 tests).
+## Orchestrator cross-review performed after merge
+
+Per both SQL-ENGINEER's and SECURITY-ENGINEER's reports requesting it: reviewed
+`backend/app/sql/` against `backend/docs/security/sql-layer-threat-model.md`
+section 4's checklist. 8/9 items met. One gap found and logged: no query
+timeout/resource-limit enforcement (only output row count is capped). See
+`decisions.md` for the full finding — tracked as a Wave 2 task in `roadmap.md`.
+
+## Known, accepted technical debt from this integration
+
+- `backend/app/data/` (DATA-ARCHITECT) was reconciled by the orchestrator, not the
+  original agent, to match the current `profile_dataset` shape (date_ranges,
+  text_columns, min_date/max_date) — the agent's worktree branched before those
+  fields existed on main. Fix was mechanical (add the missing fields, match the
+  date-format string) and is covered by the existing test suite post-fix.
+- None of the 6 new subsystems (`app/data/`, `app/sql/`, `app/large_data/`,
+  `app/tools/hypothesis.py`, `app/tools/regression.py`) are wired into
+  `tool_router.py`/`agent.py` yet — that's explicitly Wave 3 (TOOLING-ENGINEER +
+  AGENT-ARCHITECT), out of scope for Wave 1 by design.
