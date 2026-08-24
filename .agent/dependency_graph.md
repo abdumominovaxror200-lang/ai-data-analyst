@@ -58,20 +58,34 @@ VISUALIZATION │  contracts (Wave 1) to exist first
 BUSINESS-ANALYTICS ─┘
 ```
 
-Wave 3 candidates (all touch or depend on the agent/tooling core):
+Wave 3 — **superseded by the detailed plan in `reasoning-layer-design.md` §11–12.**
+Summary (see that doc for the full graph):
 
 ```
-AGENT-ARCHITECT   ← sole writer of agent.py, must integrate Wave 1+2 tools
-TOOLING           ← sole writer of tool_router.py, must register Wave 1+2 tools
-REASONING/VALIDATION ← builds on AGENT-ARCHITECT's existing constraint-checking prompt
-CONTEXT/TOKEN     ← builds on AGENT-ARCHITECT's existing dedup/stagnation-stop logic
+TOOLING (register the 15 unregistered Wave 1+2 tools)   ← independent prerequisite,
+       │                                                    can run any time, blocks
+       │                                                    the planner (below) from
+       │                                                    being useful
+       ▼
+REASONING-ARCHITECT (contracts.py + orchestrator.py skeleton)   ← Phase 3a, sequential
+       │
+       ├──▶ QUESTION-PARSING-ENGINEER   (question_parser.py, premise_validator.py)
+       ├──▶ PLANNING-ENGINEER           (planner.py)              Phase 3b,
+       ├──▶ VERIFICATION-ENGINEER       (verifier.py, uncertainty.py)  parallel,
+       ├──▶ SYNTHESIS-ENGINEER          (synthesizer.py)           no file overlap
+       ├──▶ REASONING-QA-ENGINEER       (tests + reasoning benchmark)
+       └──▶ REASONING-SECURITY-ENGINEER (review only)
+       │
+       ▼
+Orchestrator integration (executor.py wiring, API route, full regression)  ← Phase 3c
 ```
 
-Note: unlike a from-scratch build, Wave 3's foundation is **not empty** — AGENT-ARCHITECT
-is extending working code, not writing a new loop. REASONING/VALIDATION and CONTEXT/TOKEN
-should treat the existing `agent.py` behavior (constraint prompt, coverage warnings,
-dedup) as a baseline to preserve, not replace — regression against the 7-question
-benchmark from this session is the concrete acceptance bar.
+Note: unlike a from-scratch build, this foundation is **not empty** — `agent.py`'s
+existing constraint-checking prompt, dedup/stagnation-stop, and trust-boundary wrapping
+are all reused as-is by the reasoning layer's `executor.py`, not rebuilt. Regression
+against the existing 505-test suite plus the new reasoning-quality benchmark
+(`reasoning-layer-design.md` §10) is the acceptance bar. **Not yet launched** — waiting
+for approval per the user's explicit "design first, stop before implementing" instruction.
 
 Wave 4 (production hardening) — independent of each other, depend on Waves 1–3 having
 something to harden:

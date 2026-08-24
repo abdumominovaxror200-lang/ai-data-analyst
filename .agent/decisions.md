@@ -107,7 +107,29 @@
    dependency instead of two. `scipy` likely still needed underneath (statsmodels
    depends on it) but no separate `prophet`/other forecasting library.
 
+## Decided (this session, by user) — reasoning layer pivot
+
+User paused further Wave 2 feature build-out (4 of 7 planned agents — BUSINESS-ANALYTICS,
+VISUALIZATION, DATA-QUALITY, QA-PROFESSIONAL-BENCHMARK — not launched) to require an
+architecture design for an "Evidence-Based Analytical Reasoning Layer" before any more
+implementation: a bounded, typed control loop (parse → validate premise → plan →
+execute → verify → assess uncertainty → synthesize) that classifies every conclusion as
+FACT/CALCULATED_RESULT/STATISTICAL_RESULT/HYPOTHESIS/ASSUMPTION/UNKNOWN, generates
+competing hypotheses for diagnostic questions, and never presents correlation as
+causation. Explicit requirement: **design only, no implementation, until approved.**
+Full proposal: `reasoning-layer-design.md`. Key architectural choice: purely additive —
+`agent.py`/`tool_router.py` unmodified, new `backend/app/reasoning/` package calls into
+them rather than reimplementing tool execution, LLM-call budget fixed at 3 structured
+calls per question (parse/plan/synthesize) plus the existing ≤10-iteration tool loop —
+directly satisfies the user's explicit anti-runaway-reasoning requirement.
+
 ## Open — need a decision before the relevant wave starts
+
+1a. **New API route (`POST /api/analyze`) vs. a `mode=deep` flag on the existing chat
+    route, for surfacing the reasoning layer.** Not resolved in `reasoning-layer-design.md`
+    by design — implementation-time call for REASONING-ARCHITECT + AGENT-ARCHITECT once
+    Phase 3a starts. Either way the existing route/behavior is untouched.
+
 
 1. **Frontend ownership.** No team in the proposed org chart owns `frontend/src/`.
    New capabilities (SQL results, forecasts, clusters) will need UI surfaces before

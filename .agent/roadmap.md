@@ -11,8 +11,8 @@ or alongside Wave 2.
 |---|---|---|
 | 0 | Audit (this document set) | ✅ Complete |
 | 1 | DATA-ARCHITECT, SQL-ENGINEER, LARGE-DATA, STATISTICS-ENGINEER, QA, SECURITY | ✅ Complete — merged, 380/380 tests passing |
-| 2 | EDA, FORECASTING, ADVANCED-ANALYTICS, VISUALIZATION, BUSINESS-ANALYTICS | Not yet planned in detail — depends on Wave 1 output |
-| 3 | AGENT-ARCHITECT, TOOLING, REASONING/VALIDATION, CONTEXT/TOKEN | Not yet planned — note: agent.py/tool_router.py already exist and work; this wave *extends* them, doesn't replace. Two Wave-1-discovered fixes below belong here. |
+| 2 | EDA, FORECASTING, ADVANCED-ANALYTICS, VISUALIZATION, BUSINESS-ANALYTICS, QA-PROFESSIONAL-BENCHMARK | **PARTIAL** — FORECASTING, ADVANCED-ANALYTICS, EDA-PROFILING landed (505/505 tests). VISUALIZATION, BUSINESS-ANALYTICS, DATA-QUALITY, QA-PROFESSIONAL-BENCHMARK **on hold** — user pivoted to request the reasoning-layer design (below) before more feature build-out. See `integration_status.md`. |
+| 3 | TOOLING (tool registration), then REASONING-ARCHITECT + 6 parallel reasoning-pipeline agents | **Designed, not started.** Full proposal in `reasoning-layer-design.md`. Waiting for explicit approval to launch Phase 3a. |
 | 4 | PERFORMANCE, SECURITY, DEVOPS, REPORTING, DOCUMENTATION | Not yet planned |
 | 5 | BENCHMARK (full suite) | Not yet planned — should absorb this session's 7-question run (now automated in `backend/tests/test_benchmark_ground_truth.py`) as its seed |
 

@@ -1,5 +1,31 @@
 # Integration Status
 
+## Wave 2 — PARTIAL (3 of 7 agents). Remaining 4 on hold, see roadmap.md.
+
+| Commit(s) | Agent | Tests after |
+|---|---|---|
+| `705833b` | FORECASTING-ENGINEER (clean merge, `--no-ff`) | 444 |
+| `ec67573` | ADVANCED-ANALYTICS-ENGINEER (clean merge, `--no-ff`) | 448 (note: agent's own worktree measured 448 before this integration step; orchestrator merge landed the same net result) |
+| `fb2aa8d` | EDA-PROFILING-ENGINEER (files copied directly from a stale worktree, not merged — see completed_tasks.md) | 505 |
+
+**Final state: 505/505 tests passing**, independently re-run by the orchestrator after
+the full integration (not just trusted from agent reports). Zero regressions on the
+406-test pre-Wave-2 baseline. All 3 worktrees removed (`git worktree remove --force`)
+and their branches deleted after integration.
+
+**Known, accepted technical debt from this integration**: none of the 5 new tool
+modules (`forecasting.py`, `clustering.py`, `segmentation.py`,
+`regression_diagnostics.py`, `eda.py`) are wired into `tool_router.py` yet — same
+already-logged pattern as Wave 1's 5 subsystems below. This is now flagged as the
+recommended *first* step of the next implementation wave in
+`reasoning-layer-design.md` §1/§9, since the reasoning layer's planner needs the real
+tool catalog to be complete to be useful.
+
+Remaining Wave 2 agents (BUSINESS-ANALYTICS, VISUALIZATION, DATA-QUALITY,
+QA-PROFESSIONAL-BENCHMARK) were never launched — user pivoted mid-wave to request the
+reasoning-layer architecture design first. See `roadmap.md` and
+`reasoning-layer-design.md`.
+
 ## Wave 1 — COMPLETE. All 6 agents merged to main.
 
 | Commit | Agent(s) | Tests after |

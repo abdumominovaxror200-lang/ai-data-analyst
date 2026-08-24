@@ -42,6 +42,23 @@ launched. One writer per file; every other team may review but not modify.
 | Repeatable benchmark suite (this session's 7-question run, formalized) | BENCHMARK-ENGINEER | Should absorb the 7 questions already run manually + this session's ground-truth cross-checks as its first fixtures |
 | Dockerfile, CI/CD pipeline, monitoring | DEVOPS-ENGINEER | Entirely new |
 
+## Wave 3 proposal — Evidence-Based Analytical Reasoning Layer (not yet launched)
+
+Full design: `reasoning-layer-design.md`. New ownership, additive only — none of these
+agents touch `agent.py`, `tool_router.py`, or any existing `app/tools/*.py`:
+
+| File / subsystem | Proposed owner (writer) | Reviewers |
+|---|---|---|
+| `backend/app/reasoning/contracts.py`, `orchestrator.py` (skeleton) | **REASONING-ARCHITECT** (sole writer, lands first — everything else depends on `contracts.py`) | all Phase 3b agents, SECURITY |
+| `backend/app/reasoning/question_parser.py`, `premise_validator.py` | QUESTION-PARSING-ENGINEER | REASONING-ARCHITECT, QA |
+| `backend/app/reasoning/planner.py` | PLANNING-ENGINEER | REASONING-ARCHITECT, QA |
+| `backend/app/reasoning/verifier.py`, `uncertainty.py` | VERIFICATION-ENGINEER | REASONING-ARCHITECT, QA |
+| `backend/app/reasoning/synthesizer.py` | SYNTHESIS-ENGINEER | REASONING-ARCHITECT, SECURITY (trust-boundary reuse) |
+| `backend/tests/reasoning/**`, `backend/tests/benchmark/reasoning_questions.json` | REASONING-QA-ENGINEER | all |
+| Review of every new LLM call site in `app/reasoning/**` against the trust-boundary rule | REASONING-SECURITY-ENGINEER (review only, no writes) | — |
+| `backend/app/reasoning/executor.py`, new API route wiring | Orchestrator (Phase 3c, direct — per Wave 1's lesson that cross-cutting wiring benefits from single-owner care) | all |
+| Registering the 15 unregistered Wave 1+2 tools into `tool_router.py` | **TOOLING-ENGINEER** (existing sole owner of this file) — independent prerequisite, can run before or alongside Phase 3a | AGENT-ARCHITECT |
+
 ## Rule reminder (per user's architecture spec, section 13)
 
 No two agents write the same file in the same wave. `agent.py` and `tool_router.py` are
