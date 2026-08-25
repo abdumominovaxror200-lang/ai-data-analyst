@@ -1,0 +1,3404 @@
+{
+  "$schema_note": "Phase 3C professional analyst benchmark (BENCHMARK-ENGINEER). Superset in scope of the Phase 3B reasoning_questions.json foundation fixture -- scored structurally against tests/benchmark/scoring.py's real ReasoningOrchestrator run, not free-text grading. Each case's `script` (where present) is the case author's best-effort simulation of a plausible-but-imperfect LLM response, including deliberately unhedged causal language in reasoning_traps cases so the orchestrator's own causation_guard is proven to catch it live, not pre-hedged by the author. Cases without a `script` get deterministic-only premise-validation checks (see scoring.py). `dataset` selects which fixture the test runner should use: 'primary' is the real data/demo/sales_data.xlsx (4000 rows, transaction-level); 'primary_daily' is that same file grouped to one row per date (sum of revenue/quantity/cost/profit) -- required because the forecasting tools reject multiple rows sharing one timestamp, so a real forecasting workflow against this dataset needs the date-aggregated view.",
+  "primary_dataset": "data/demo/sales_data.xlsx",
+  "primary_dataset_facts": {
+    "rows": 4000,
+    "columns": 11,
+    "column_names": [
+      "date",
+      "product",
+      "category",
+      "region",
+      "salesperson",
+      "quantity",
+      "unit_price",
+      "revenue",
+      "cost",
+      "profit",
+      "customer_id"
+    ],
+    "date_coverage": {
+      "min": "2024-01-01",
+      "max": "2025-12-31"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "du1",
+      "category": "data_understanding",
+      "user_question": "How many rows and columns does this dataset have, and what are the column data types?",
+      "expected_tool_category": [
+        "DATA_PROFILING"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "FACT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "DATA_PROFILING"
+          ],
+          "steps": [],
+          "tools_required": [
+            "profile_dataset"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "profile_dataset",
+            "arguments": {}
+          }
+        ],
+        "final_answer_text": "The dataset has 4,000 rows and 11 columns, including numeric columns (quantity, unit_price, revenue, cost, profit) and categorical columns (product, category, region, salesperson).",
+        "recommendation": null
+      },
+      "expected_numeric_result": {
+        "field": "rows",
+        "value": 4000,
+        "tolerance": 0
+      }
+    },
+    {
+      "case_id": "du2",
+      "category": "data_understanding",
+      "user_question": "Give me basic descriptive statistics for revenue, quantity, and unit_price.",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "revenue",
+            "quantity",
+            "unit_price"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "describe_data"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "describe_data",
+            "arguments": {
+              "columns": [
+                "revenue",
+                "quantity",
+                "unit_price"
+              ]
+            }
+          }
+        ],
+        "final_answer_text": "Revenue averages roughly $380 per transaction, with quantity and unit price summarized alongside it below.",
+        "recommendation": null
+      },
+      "expected_numeric_result": {
+        "field": "row_count",
+        "value": 4000,
+        "tolerance": 0
+      }
+    },
+    {
+      "case_id": "du3",
+      "category": "data_understanding",
+      "user_question": "Show revenue trend over the last 4 years.",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS",
+        "FORECASTING"
+      ],
+      "required_constraints": [
+        "requested time range exceeds the data actually available"
+      ],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [
+        {
+          "category": "insufficient_coverage",
+          "severity": "blocks_conclusion"
+        }
+      ],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "_probe_time_range": "last 4 years"
+    },
+    {
+      "case_id": "du4",
+      "category": "data_understanding",
+      "user_question": "Analyze trends across our 200,000 transaction database.",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS",
+        "EDA"
+      ],
+      "required_constraints": [
+        "actual dataset rows do not match the claimed transaction scale"
+      ],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [
+        {
+          "category": "insufficient_coverage",
+          "severity": "blocks_conclusion"
+        }
+      ],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "_probe_scale_constraints": [
+        "200,000 transactions"
+      ]
+    },
+    {
+      "case_id": "du5",
+      "category": "data_understanding",
+      "user_question": "What is the average customer_lifetime_value per customer?",
+      "expected_tool_category": [],
+      "required_constraints": [
+        "requested column does not exist in this dataset"
+      ],
+      "expected_classifications": [
+        "UNKNOWN"
+      ],
+      "expected_limitations": [
+        {
+          "category": "missing_data",
+          "severity": "blocks_conclusion"
+        }
+      ],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "_probe_metrics": [
+        "customer_lifetime_value"
+      ]
+    },
+    {
+      "case_id": "du6",
+      "category": "data_understanding",
+      "user_question": "Break down total revenue by warehouse_location.",
+      "expected_tool_category": [],
+      "required_constraints": [
+        "requested column does not exist in this dataset"
+      ],
+      "expected_classifications": [
+        "UNKNOWN"
+      ],
+      "expected_limitations": [
+        {
+          "category": "missing_data",
+          "severity": "blocks_conclusion"
+        }
+      ],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "_probe_dimensions": [
+        "warehouse_location"
+      ]
+    },
+    {
+      "case_id": "eda1",
+      "category": "eda",
+      "user_question": "Give me a full exploratory overview of this dataset -- structure, missingness, outliers, correlations.",
+      "expected_tool_category": [
+        "EDA"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "EDA"
+          ],
+          "steps": [],
+          "tools_required": [
+            "automated_eda"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "automated_eda",
+            "arguments": {}
+          }
+        ],
+        "final_answer_text": "The dataset is largely complete, with a small number of missing customer_id values and a handful of flagged outliers noted below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "eda2",
+      "category": "eda",
+      "user_question": "What is the correlation between quantity, unit_price, and revenue?",
+      "expected_tool_category": [
+        "EDA"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "quantity",
+            "unit_price",
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "EDA"
+          ],
+          "steps": [],
+          "tools_required": [
+            "correlation_analysis"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "correlation_analysis",
+            "arguments": {
+              "columns": [
+                "quantity",
+                "unit_price",
+                "revenue"
+              ]
+            }
+          }
+        ],
+        "final_answer_text": "Revenue correlates most strongly with unit_price and quantity, as expected since revenue is derived from both.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "eda3",
+      "category": "eda",
+      "user_question": "How skewed are the quantity and unit_price distributions?",
+      "expected_tool_category": [
+        "EDA"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "quantity",
+            "unit_price"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "EDA"
+          ],
+          "steps": [],
+          "tools_required": [
+            "analyze_distributions"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "analyze_distributions",
+            "arguments": {
+              "columns": [
+                "quantity",
+                "unit_price"
+              ]
+            }
+          }
+        ],
+        "final_answer_text": "Both quantity and unit_price show mild skew; details are summarized below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "eda4",
+      "category": "eda",
+      "user_question": "What's the average unit price for each product category?",
+      "expected_tool_category": [
+        "EDA",
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "_probe_metrics": [
+        "unit_price"
+      ],
+      "_probe_dimensions": [
+        "category"
+      ]
+    },
+    {
+      "case_id": "eda5",
+      "category": "eda",
+      "user_question": "What's the correlation between revenue and customer_satisfaction_score?",
+      "expected_tool_category": [],
+      "required_constraints": [
+        "requested column does not exist in this dataset"
+      ],
+      "expected_classifications": [
+        "UNKNOWN"
+      ],
+      "expected_limitations": [
+        {
+          "category": "missing_data",
+          "severity": "blocks_conclusion"
+        }
+      ],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "_probe_metrics": [
+        "revenue",
+        "customer_satisfaction_score"
+      ]
+    },
+    {
+      "case_id": "eda6",
+      "category": "eda",
+      "user_question": "What does the overall data quality and structure look like at a glance?",
+      "expected_tool_category": [
+        "EDA"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "EDA"
+          ],
+          "steps": [],
+          "tools_required": [
+            "automated_eda"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "automated_eda",
+            "arguments": {}
+          }
+        ],
+        "final_answer_text": "The dataset schema, missingness, duplicates, and cardinality are summarized below; no critical structural problems were found.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "sql1",
+      "category": "sql",
+      "user_question": "Use SQL to find total revenue by product category.",
+      "expected_tool_category": [
+        "SQL"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "category"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "SQL"
+          ],
+          "steps": [],
+          "tools_required": [
+            "run_sql_query"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "run_sql_query",
+            "arguments": {
+              "sql": "SELECT category, SUM(revenue) AS total_revenue FROM dataset GROUP BY category ORDER BY total_revenue DESC"
+            }
+          }
+        ],
+        "final_answer_text": "Total revenue by category is shown below, computed via a read-only SQL query.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "sql2",
+      "category": "sql",
+      "user_question": "Write a SQL query to find the top 5 salespeople by total revenue.",
+      "expected_tool_category": [
+        "SQL"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "salesperson"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "SQL"
+          ],
+          "steps": [],
+          "tools_required": [
+            "run_sql_query"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "run_sql_query",
+            "arguments": {
+              "sql": "SELECT salesperson, SUM(revenue) AS total_revenue FROM dataset GROUP BY salesperson ORDER BY total_revenue DESC LIMIT 5"
+            }
+          }
+        ],
+        "final_answer_text": "The top 5 salespeople by total revenue are listed below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "sql3",
+      "category": "sql",
+      "user_question": "Using SQL, show the month-over-month revenue trend for 2025.",
+      "expected_tool_category": [
+        "SQL"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": "2025",
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "SQL"
+          ],
+          "steps": [],
+          "tools_required": [
+            "run_sql_query"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "run_sql_query",
+            "arguments": {
+              "sql": "SELECT strftime(date, '%Y-%m') AS month, SUM(revenue) AS total_revenue FROM dataset WHERE date >= '2025-01-01' AND date <= '2025-12-31' GROUP BY month ORDER BY month"
+            }
+          }
+        ],
+        "final_answer_text": "Monthly revenue totals for 2025 are shown below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "sql4",
+      "category": "sql",
+      "user_question": "Can you run a SQL command to delete the test rows from this dataset?",
+      "expected_tool_category": [
+        "SQL"
+      ],
+      "required_constraints": [
+        "only read-only select statements are permitted"
+      ],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": [
+            {
+              "text": "Only read-only SELECT statements are permitted against this dataset.",
+              "source": "system_inferred"
+            }
+          ]
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "SQL"
+          ],
+          "steps": [],
+          "tools_required": [
+            "run_sql_query"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "run_sql_query",
+            "arguments": {
+              "sql": "SELECT COUNT(*) AS test_row_count FROM dataset WHERE product = 'TEST'"
+            }
+          }
+        ],
+        "final_answer_text": "This system only allows read-only SELECT queries -- it cannot delete rows. A read-only check for rows matching 'TEST' is shown below instead.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "sql5",
+      "category": "sql",
+      "user_question": "Write a SQL query with a window function to rank regions by total revenue.",
+      "expected_tool_category": [
+        "SQL"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "region"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "SQL"
+          ],
+          "steps": [],
+          "tools_required": [
+            "run_sql_query"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "run_sql_query",
+            "arguments": {
+              "sql": "WITH region_totals AS (SELECT region, SUM(revenue) AS total_revenue FROM dataset GROUP BY region) SELECT region, total_revenue, RANK() OVER (ORDER BY total_revenue DESC) AS revenue_rank FROM region_totals"
+            }
+          }
+        ],
+        "final_answer_text": "Regions ranked by total revenue (via a CTE and window function) are shown below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "sql6",
+      "category": "sql",
+      "user_question": "Before running it, explain the query plan for finding total revenue by region.",
+      "expected_tool_category": [
+        "SQL"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "region"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "SQL"
+          ],
+          "steps": [],
+          "tools_required": [
+            "explain_sql_query"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "explain_sql_query",
+            "arguments": {
+              "sql": "SELECT region, SUM(revenue) AS total_revenue FROM dataset GROUP BY region ORDER BY total_revenue DESC"
+            }
+          }
+        ],
+        "final_answer_text": "The query plan for this aggregation is shown below; it should run efficiently over the full dataset.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "stat1",
+      "category": "statistics",
+      "user_question": "Is average revenue significantly different between the North and South regions?",
+      "expected_tool_category": [
+        "STATISTICS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "comparative",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "region"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "STATISTICS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "t_test"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "t_test",
+            "arguments": {
+              "column": "revenue",
+              "group_column": "region",
+              "group_a": "North",
+              "group_b": "South"
+            }
+          }
+        ],
+        "final_answer_text": "There is no statistically significant difference in average revenue between the North and South regions (p > 0.05).",
+        "recommendation": null
+      },
+      "expected_numeric_result": {
+        "field": "p_value",
+        "value": 0.831622,
+        "tolerance": 0.0005
+      }
+    },
+    {
+      "case_id": "stat2",
+      "category": "statistics",
+      "user_question": "What is the 95% confidence interval for average revenue per transaction?",
+      "expected_tool_category": [
+        "STATISTICS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [
+            "95% confidence"
+          ],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "STATISTICS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "confidence_interval"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "confidence_interval",
+            "arguments": {
+              "column": "revenue",
+              "confidence": 0.95
+            }
+          }
+        ],
+        "final_answer_text": "Average revenue per transaction is estimated at about $380, with a 95% confidence interval shown below.",
+        "recommendation": null
+      },
+      "expected_numeric_result": {
+        "field": "mean",
+        "value": 379.7357,
+        "tolerance": 0.01
+      }
+    },
+    {
+      "case_id": "stat3",
+      "category": "statistics",
+      "user_question": "Is there a significant relationship between product category and region?",
+      "expected_tool_category": [
+        "STATISTICS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "comparative",
+          "requested_metrics": [
+            "category",
+            "region"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "STATISTICS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "chi_square_test"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "chi_square_test",
+            "arguments": {
+              "column_a": "category",
+              "column_b": "region"
+            }
+          }
+        ],
+        "final_answer_text": "No statistically significant relationship was found between product category and region (p > 0.05) -- category mix looks similar across regions.",
+        "recommendation": null
+      },
+      "expected_numeric_result": {
+        "field": "p_value",
+        "value": 0.624111,
+        "tolerance": 0.0005
+      }
+    },
+    {
+      "case_id": "stat4",
+      "category": "statistics",
+      "user_question": "Does average revenue differ significantly across the four product categories?",
+      "expected_tool_category": [
+        "STATISTICS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "comparative",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "category"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "STATISTICS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "anova_test"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "anova_test",
+            "arguments": {
+              "value_column": "revenue",
+              "group_column": "category"
+            }
+          }
+        ],
+        "final_answer_text": "Average revenue differs significantly across product categories (p < 0.05); Home & Office has the highest average and Apparel the lowest.",
+        "recommendation": null
+      },
+      "expected_numeric_result": {
+        "field": "p_value",
+        "value": 0.0,
+        "tolerance": 0.0005
+      }
+    },
+    {
+      "case_id": "stat5",
+      "category": "statistics",
+      "user_question": "How large is the difference in revenue between the Electronics and Apparel categories?",
+      "expected_tool_category": [
+        "STATISTICS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "comparative",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "category"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "STATISTICS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "effect_size"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "effect_size",
+            "arguments": {
+              "column": "revenue",
+              "group_column": "category",
+              "group_a": "Electronics",
+              "group_b": "Apparel"
+            }
+          }
+        ],
+        "final_answer_text": "The revenue difference between Electronics and Apparel is a small effect (Cohen's d roughly 0.25) -- statistically present but not a dramatic gap.",
+        "recommendation": null
+      },
+      "expected_numeric_result": {
+        "field": "cohens_d",
+        "value": 0.2513,
+        "tolerance": 0.005
+      }
+    },
+    {
+      "case_id": "stat6",
+      "category": "statistics",
+      "user_question": "Test whether the average order quantity is equal to 5 units.",
+      "expected_tool_category": [
+        "STATISTICS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "comparative",
+          "requested_metrics": [
+            "quantity"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [
+            "popmean of 5 units"
+          ],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "STATISTICS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "t_test"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "t_test",
+            "arguments": {
+              "column": "quantity",
+              "popmean": 5
+            }
+          }
+        ],
+        "final_answer_text": "The average order quantity is significantly different from 5 units (p < 0.05); the true average is somewhat lower.",
+        "recommendation": null
+      },
+      "expected_numeric_result": {
+        "field": "mean",
+        "value": 4.168,
+        "tolerance": 0.01
+      }
+    },
+    {
+      "case_id": "fc1",
+      "category": "forecasting",
+      "user_question": "Forecast total revenue for the next 3 months.",
+      "expected_tool_category": [
+        "FORECASTING"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary_daily",
+      "script": {
+        "parsed_question": {
+          "intent": "predictive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": "next 3 months",
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "FORECASTING"
+          ],
+          "steps": [],
+          "tools_required": [
+            "forecast"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "forecast",
+            "arguments": {
+              "date_column": "date",
+              "value_column": "revenue",
+              "periods": 90
+            }
+          }
+        ],
+        "final_answer_text": "Revenue is forecast to continue near its recent daily levels over the next 3 months, with widening prediction intervals further into the horizon.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "fc2",
+      "category": "forecasting",
+      "user_question": "Decompose the daily revenue series into trend, seasonal, and residual components.",
+      "expected_tool_category": [
+        "FORECASTING"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary_daily",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "FORECASTING"
+          ],
+          "steps": [],
+          "tools_required": [
+            "decompose_timeseries"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "decompose_timeseries",
+            "arguments": {
+              "date_column": "date",
+              "value_column": "revenue"
+            }
+          }
+        ],
+        "final_answer_text": "The revenue series decomposes into a trend component, a weekly seasonal pattern, and residual noise, as shown below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "fc3",
+      "category": "forecasting",
+      "user_question": "How accurate would our forecasting model be, based on historical backtesting?",
+      "expected_tool_category": [
+        "FORECASTING"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary_daily",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "FORECASTING"
+          ],
+          "steps": [],
+          "tools_required": [
+            "backtest_forecast"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "backtest_forecast",
+            "arguments": {
+              "date_column": "date",
+              "value_column": "revenue"
+            }
+          }
+        ],
+        "final_answer_text": "Backtesting on held-out historical data shows the forecasting method's error rates (MAE/RMSE/MAPE), summarized below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "fc4",
+      "category": "forecasting",
+      "user_question": "Split the revenue time series into train/test sets to validate a forecasting approach.",
+      "expected_tool_category": [
+        "FORECASTING"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary_daily",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "FORECASTING"
+          ],
+          "steps": [],
+          "tools_required": [
+            "train_test_split_timeseries"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "train_test_split_timeseries",
+            "arguments": {
+              "date_column": "date",
+              "value_column": "revenue"
+            }
+          }
+        ],
+        "final_answer_text": "The revenue series was split chronologically into a training and test portion, sized as shown below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "fc5",
+      "category": "forecasting",
+      "user_question": "Forecast revenue for the next 12 months, and tell me how much uncertainty is involved.",
+      "expected_tool_category": [
+        "FORECASTING"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary_daily",
+      "script": {
+        "parsed_question": {
+          "intent": "predictive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": "next 12 months",
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "FORECASTING"
+          ],
+          "steps": [],
+          "tools_required": [
+            "forecast"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "forecast",
+            "arguments": {
+              "date_column": "date",
+              "value_column": "revenue",
+              "periods": 365,
+              "confidence_level": 0.95
+            }
+          }
+        ],
+        "final_answer_text": "A 12-month revenue forecast is shown below with 95% prediction intervals; uncertainty widens substantially the further out the forecast goes, so the later months should be treated as far less certain than the near-term ones.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "fc6",
+      "category": "forecasting",
+      "user_question": "Using the seasonal pattern in our data, forecast next quarter's revenue.",
+      "expected_tool_category": [
+        "FORECASTING"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary_daily",
+      "script": {
+        "parsed_question": {
+          "intent": "predictive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": "next quarter",
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "FORECASTING"
+          ],
+          "steps": [],
+          "tools_required": [
+            "decompose_timeseries",
+            "forecast"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "decompose_timeseries",
+            "arguments": {
+              "date_column": "date",
+              "value_column": "revenue"
+            }
+          },
+          {
+            "tool": "forecast",
+            "arguments": {
+              "date_column": "date",
+              "value_column": "revenue",
+              "periods": 90
+            }
+          }
+        ],
+        "final_answer_text": "After accounting for the weekly seasonal pattern, revenue for next quarter is forecast to follow the recent trend, as shown below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "bd1",
+      "category": "business_diagnosis",
+      "user_question": "Why did profit drop in the second half of 2025 compared to the first half?",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS",
+        "EDA",
+        "STATISTICS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "must_generate_2_to_4_competing_hypotheses",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "diagnostic",
+          "requested_metrics": [
+            "profit"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": "second half of 2025",
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "compare_periods"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": [
+            {
+              "description": "Cost per unit increased in the second half, compressing profit even as revenue held steady",
+              "is_causal": false
+            },
+            {
+              "description": "A shift in product mix toward lower-margin categories reduced average profit",
+              "is_causal": false
+            },
+            {
+              "description": "A small number of high-cost outlier transactions pulled down the second-half average",
+              "is_causal": false
+            }
+          ]
+        },
+        "tool_calls": [
+          {
+            "tool": "compare_periods",
+            "arguments": {
+              "date_column": "date",
+              "value_column": "profit",
+              "current_start": "2025-07-01",
+              "current_end": "2025-12-31",
+              "previous_start": "2025-01-01",
+              "previous_end": "2025-06-30",
+              "agg_func": "sum"
+            }
+          }
+        ],
+        "final_answer_text": "Total profit was lower in the second half of 2025 than the first half. Several plausible explanations are considered below; none is yet confirmed.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "bd2",
+      "category": "business_diagnosis",
+      "user_question": "Why is the West region underperforming compared to the other regions?",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "must_generate_2_to_4_competing_hypotheses",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "diagnostic",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "region"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "group_and_aggregate"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": [
+            {
+              "description": "The West region has fewer active salespeople than other regions",
+              "is_causal": false
+            },
+            {
+              "description": "The West region's product mix skews toward lower-priced items",
+              "is_causal": false
+            },
+            {
+              "description": "The West region has a smaller or newer customer base still ramping up",
+              "is_causal": false
+            }
+          ]
+        },
+        "tool_calls": [
+          {
+            "tool": "group_and_aggregate",
+            "arguments": {
+              "group_by": "region",
+              "agg_column": "revenue",
+              "agg_func": "mean"
+            }
+          }
+        ],
+        "final_answer_text": "Average revenue in the West region is lower than in other regions. A few possible explanations are considered below, none confirmed yet.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "bd3",
+      "category": "business_diagnosis",
+      "user_question": "What's driving the difference in average order value between Electronics and Apparel?",
+      "expected_tool_category": [
+        "STATISTICS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "must_generate_2_to_4_competing_hypotheses",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "diagnostic",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "category"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "STATISTICS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "t_test"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": [
+            {
+              "description": "Electronics items have a structurally higher unit price than Apparel items",
+              "is_causal": false
+            },
+            {
+              "description": "Customers buy larger quantities per Electronics order than per Apparel order",
+              "is_causal": false
+            }
+          ]
+        },
+        "tool_calls": [
+          {
+            "tool": "t_test",
+            "arguments": {
+              "column": "revenue",
+              "group_column": "category",
+              "group_a": "Electronics",
+              "group_b": "Apparel"
+            }
+          }
+        ],
+        "final_answer_text": "Average order value is higher for Electronics than Apparel, and the difference is statistically significant. Possible contributing factors are considered below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "bd4",
+      "category": "business_diagnosis",
+      "user_question": "Why does the Fitness category have lower total units sold than the other categories?",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "must_generate_2_to_4_competing_hypotheses",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "diagnostic",
+          "requested_metrics": [
+            "quantity"
+          ],
+          "requested_dimensions": [
+            "category"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "group_and_aggregate"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": [
+            {
+              "description": "Fitness products have fewer distinct SKUs listed than other categories",
+              "is_causal": false
+            },
+            {
+              "description": "Fitness products are priced higher per unit, naturally reducing unit volume",
+              "is_causal": false
+            },
+            {
+              "description": "Fitness demand is more seasonal and concentrated in specific months",
+              "is_causal": false
+            }
+          ]
+        },
+        "tool_calls": [
+          {
+            "tool": "group_and_aggregate",
+            "arguments": {
+              "group_by": "category",
+              "agg_column": "quantity",
+              "agg_func": "sum"
+            }
+          }
+        ],
+        "final_answer_text": "Total units sold in the Fitness category is lower than in other categories. A few possible explanations are considered below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "bd5",
+      "category": "business_diagnosis",
+      "user_question": "Why is declining profit_margin_percentage by store a concern this quarter?",
+      "expected_tool_category": [],
+      "required_constraints": [
+        "requested column does not exist in this dataset"
+      ],
+      "expected_classifications": [
+        "UNKNOWN"
+      ],
+      "expected_limitations": [
+        {
+          "category": "missing_data",
+          "severity": "blocks_conclusion"
+        }
+      ],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "_probe_metrics": [
+        "profit_margin_percentage"
+      ],
+      "_probe_dimensions": [
+        "store"
+      ]
+    },
+    {
+      "case_id": "bd6",
+      "category": "business_diagnosis",
+      "user_question": "Why might average profit per transaction vary so much across salespeople?",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "must_generate_2_to_4_competing_hypotheses",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "diagnostic",
+          "requested_metrics": [
+            "profit"
+          ],
+          "requested_dimensions": [
+            "salesperson"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "group_and_aggregate"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": [
+            {
+              "description": "Some salespeople are assigned disproportionately to higher-margin categories",
+              "is_causal": false
+            },
+            {
+              "description": "Some salespeople work in regions with structurally different pricing",
+              "is_causal": false
+            },
+            {
+              "description": "Tenure differences mean some salespeople handle larger, more profitable accounts",
+              "is_causal": false
+            }
+          ]
+        },
+        "tool_calls": [
+          {
+            "tool": "group_and_aggregate",
+            "arguments": {
+              "group_by": "salesperson",
+              "agg_column": "profit",
+              "agg_func": "mean",
+              "top_n": 10
+            }
+          }
+        ],
+        "final_answer_text": "Average profit per transaction varies noticeably across salespeople. Possible contributing factors are considered below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "seg1",
+      "category": "segmentation",
+      "user_question": "Segment our customers using RFM (recency, frequency, monetary) analysis.",
+      "expected_tool_category": [
+        "SEGMENTATION"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [],
+          "requested_dimensions": [
+            "customer_id"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "SEGMENTATION"
+          ],
+          "steps": [],
+          "tools_required": [
+            "rfm_analysis"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "rfm_analysis",
+            "arguments": {
+              "customer_column": "customer_id",
+              "date_column": "date",
+              "value_column": "revenue"
+            }
+          }
+        ],
+        "final_answer_text": "Customers are segmented into standard RFM tiers (Champions, At Risk, Lost, etc.); segment sizes and summaries are shown below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "seg2",
+      "category": "segmentation",
+      "user_question": "Show customer retention by monthly cohort over time.",
+      "expected_tool_category": [
+        "SEGMENTATION"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [],
+          "requested_dimensions": [
+            "customer_id"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "SEGMENTATION"
+          ],
+          "steps": [],
+          "tools_required": [
+            "cohort_analysis"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "cohort_analysis",
+            "arguments": {
+              "customer_column": "customer_id",
+              "date_column": "date",
+              "period": "M"
+            }
+          }
+        ],
+        "final_answer_text": "Monthly cohort retention is shown below -- what fraction of each month's new customers are still active in later months.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "seg3",
+      "category": "segmentation",
+      "user_question": "Which customers are at risk of churning based on their purchase recency?",
+      "expected_tool_category": [
+        "SEGMENTATION"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [],
+          "requested_dimensions": [
+            "customer_id"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "SEGMENTATION"
+          ],
+          "steps": [],
+          "tools_required": [
+            "churn_risk_analysis"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "churn_risk_analysis",
+            "arguments": {
+              "customer_column": "customer_id",
+              "date_column": "date"
+            }
+          }
+        ],
+        "final_answer_text": "Customers are classified as active, at_risk, or churned based on purchase recency; counts per group are shown below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "seg4",
+      "category": "segmentation",
+      "user_question": "Cluster customers into behavioral groups based on order quantity, unit price, and revenue.",
+      "expected_tool_category": [
+        "CLUSTERING",
+        "SEGMENTATION"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "quantity",
+            "unit_price",
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "CLUSTERING"
+          ],
+          "steps": [],
+          "tools_required": [
+            "kmeans_cluster"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "kmeans_cluster",
+            "arguments": {
+              "columns": [
+                "quantity",
+                "unit_price",
+                "revenue"
+              ]
+            }
+          }
+        ],
+        "final_answer_text": "K-means clustering identifies several distinct purchasing-behavior groups; cluster sizes and centroids are shown below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "seg5",
+      "category": "segmentation",
+      "user_question": "Segment customers by their satisfaction_tier.",
+      "expected_tool_category": [],
+      "required_constraints": [
+        "requested column does not exist in this dataset"
+      ],
+      "expected_classifications": [
+        "UNKNOWN"
+      ],
+      "expected_limitations": [
+        {
+          "category": "missing_data",
+          "severity": "blocks_conclusion"
+        }
+      ],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "_probe_dimensions": [
+        "satisfaction_tier"
+      ]
+    },
+    {
+      "case_id": "seg6",
+      "category": "segmentation",
+      "user_question": "Reduce our numeric order features to 2 dimensions for visualizing customer segments.",
+      "expected_tool_category": [
+        "CLUSTERING"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "quantity",
+            "unit_price",
+            "revenue",
+            "cost",
+            "profit"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "CLUSTERING"
+          ],
+          "steps": [],
+          "tools_required": [
+            "pca_reduce"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "pca_reduce",
+            "arguments": {
+              "columns": [
+                "quantity",
+                "unit_price",
+                "revenue",
+                "cost",
+                "profit"
+              ],
+              "n_components": 2
+            }
+          }
+        ],
+        "final_answer_text": "PCA reduces the 5 numeric order features to 2 components, explaining most of the variance; loadings are shown below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "dq1",
+      "category": "data_quality",
+      "user_question": "Are there any duplicate rows or missing values in this dataset?",
+      "expected_tool_category": [
+        "DATA_PROFILING"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "FACT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "DATA_PROFILING"
+          ],
+          "steps": [],
+          "tools_required": [
+            "profile_dataset"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "profile_dataset",
+            "arguments": {}
+          }
+        ],
+        "final_answer_text": "The dataset has a small number of missing customer_id values and no duplicate rows detected, as shown below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "dq2",
+      "category": "data_quality",
+      "user_question": "Which columns look like unique identifiers versus real categorical groupings?",
+      "expected_tool_category": [
+        "DATA_QUALITY"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "DATA_QUALITY"
+          ],
+          "steps": [],
+          "tools_required": [
+            "analyze_cardinality"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "analyze_cardinality",
+            "arguments": {}
+          }
+        ],
+        "final_answer_text": "customer_id looks identifier-like (very high cardinality), while product, category, region, and salesperson are proper categorical groupings, as shown below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "dq3",
+      "category": "data_quality",
+      "user_question": "Are there unusual outlier values in the cost column?",
+      "expected_tool_category": [
+        "DATA_QUALITY"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "cost"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "DATA_QUALITY"
+          ],
+          "steps": [],
+          "tools_required": [
+            "detect_anomalies"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "detect_anomalies",
+            "arguments": {
+              "column": "cost",
+              "method": "iqr"
+            }
+          }
+        ],
+        "final_answer_text": "A small number of cost values fall outside the typical IQR range; they are listed below for review.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "dq4",
+      "category": "data_quality",
+      "user_question": "Check whether unit_price and revenue have any jointly unusual (multivariate) outlier rows.",
+      "expected_tool_category": [
+        "REGRESSION"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "STATISTICAL_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "unit_price",
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "REGRESSION"
+          ],
+          "steps": [],
+          "tools_required": [
+            "outlier_analysis_multivariate"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "outlier_analysis_multivariate",
+            "arguments": {
+              "columns": [
+                "unit_price",
+                "revenue"
+              ],
+              "method": "mahalanobis"
+            }
+          }
+        ],
+        "final_answer_text": "A small set of rows are jointly unusual across unit_price and revenue together, even though neither value alone looks extreme; they are listed below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "dq5",
+      "category": "data_quality",
+      "user_question": "Is the email_address column properly formatted for all rows?",
+      "expected_tool_category": [],
+      "required_constraints": [
+        "requested column does not exist in this dataset"
+      ],
+      "expected_classifications": [
+        "UNKNOWN"
+      ],
+      "expected_limitations": [
+        {
+          "category": "missing_data",
+          "severity": "blocks_conclusion"
+        }
+      ],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "_probe_metrics": [
+        "email_address"
+      ]
+    },
+    {
+      "case_id": "dq6",
+      "category": "data_quality",
+      "user_question": "Does the customer_id column have any missing values, and how many unique customers are there?",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "customer_id"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "describe_data"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "describe_data",
+            "arguments": {
+              "columns": [
+                "customer_id"
+              ]
+            }
+          }
+        ],
+        "final_answer_text": "customer_id has a small number of missing values and a large number of unique customers, as shown below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "er1",
+      "category": "executive_reporting",
+      "user_question": "Generate a full business report summarizing key performance for this dataset.",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "generate_report"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "generate_report",
+            "arguments": {}
+          }
+        ],
+        "final_answer_text": "A structured business report covering revenue, profit, and category performance is summarized below.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "er2",
+      "category": "executive_reporting",
+      "user_question": "Give me an executive summary of business insights, anomalies, and correlations.",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "generate_business_insights"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "generate_business_insights",
+            "arguments": {}
+          }
+        ],
+        "final_answer_text": "Key statistics, anomalies, correlations, and data-quality issues are summarized below for an executive audience.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "er3",
+      "category": "executive_reporting",
+      "user_question": "Compare this year's (2025) revenue performance to last year's (2024).",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "comparative",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": "2025 vs 2024",
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "compare_periods"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "compare_periods",
+            "arguments": {
+              "date_column": "date",
+              "value_column": "revenue",
+              "current_start": "2025-01-01",
+              "current_end": "2025-12-31",
+              "previous_start": "2024-01-01",
+              "previous_end": "2024-12-31",
+              "agg_func": "sum"
+            }
+          }
+        ],
+        "final_answer_text": "Total revenue in 2025 is modestly higher than in 2024, as shown below.",
+        "recommendation": null
+      },
+      "expected_numeric_result": {
+        "field": "delta",
+        "value": 12770.69,
+        "tolerance": 1.0
+      }
+    },
+    {
+      "case_id": "er4",
+      "category": "executive_reporting",
+      "user_question": "What are the top-selling products by total revenue?",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "descriptive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "product"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "group_and_aggregate"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "group_and_aggregate",
+            "arguments": {
+              "group_by": "product",
+              "agg_column": "revenue",
+              "agg_func": "sum",
+              "top_n": 10
+            }
+          }
+        ],
+        "final_answer_text": "The top-selling products by total revenue are listed below, led by the Zenith Office Chair and Halo Desk Monitor.",
+        "recommendation": null
+      },
+      "expected_numeric_result": {
+        "field": "group_count",
+        "value": 10,
+        "tolerance": 0
+      }
+    },
+    {
+      "case_id": "er5",
+      "category": "executive_reporting",
+      "user_question": "Should we invest more marketing budget in the Electronics category?",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "prescriptive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "category"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "group_and_aggregate"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "group_and_aggregate",
+            "arguments": {
+              "group_by": "category",
+              "agg_column": "revenue",
+              "agg_func": "sum"
+            }
+          }
+        ],
+        "final_answer_text": "Electronics already generates strong total revenue relative to other categories. Whether additional marketing spend would be effective cannot be determined from sales data alone -- that requires marketing response data this system does not have.",
+        "recommendation": {
+          "recommendation": "Consider a small, measurable marketing test in Electronics before committing a larger budget increase.",
+          "expected_business_effect": null,
+          "confidence": null,
+          "assumptions": [
+            "Marketing spend effectiveness is not directly observable in this dataset."
+          ],
+          "risks": [
+            "Increased spend may not proportionally increase revenue."
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "er6",
+      "category": "executive_reporting",
+      "user_question": "Prepare an executive report covering our 150,000-customer retail network.",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [
+        "actual dataset rows do not match the claimed customer scale"
+      ],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [
+        {
+          "category": "insufficient_coverage",
+          "severity": "blocks_conclusion"
+        }
+      ],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "_probe_scale_constraints": [
+        "150,000 customers"
+      ]
+    },
+    {
+      "case_id": "rt1",
+      "category": "reasoning_traps",
+      "user_question": "Quantity sold and revenue are strongly correlated -- does higher quantity cause higher revenue?",
+      "expected_tool_category": [
+        "EDA"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "must_hedge_unless_causal_hypothesis_supported",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "diagnostic",
+          "requested_metrics": [
+            "quantity",
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "EDA"
+          ],
+          "steps": [],
+          "tools_required": [
+            "correlation_analysis"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": [
+            {
+              "description": "Higher quantity per order directly causes higher revenue per order",
+              "is_causal": true
+            },
+            {
+              "description": "Both quantity and revenue are jointly driven by unit price and order size",
+              "is_causal": false
+            }
+          ]
+        },
+        "tool_calls": [
+          {
+            "tool": "correlation_analysis",
+            "arguments": {
+              "columns": [
+                "quantity",
+                "unit_price",
+                "revenue"
+              ]
+            }
+          }
+        ],
+        "final_answer_text": "Higher quantity causes higher revenue, since the two are strongly correlated.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "rt2",
+      "category": "reasoning_traps",
+      "user_question": "Region North has a higher average order value than South in most categories, yet South's overall average is higher -- why could that be?",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "must_generate_2_to_4_competing_hypotheses",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "diagnostic",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "region",
+            "category"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "group_and_aggregate"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": [
+            {
+              "description": "South sells a different, higher-value product mix overall even if North wins within each category",
+              "is_causal": false
+            },
+            {
+              "description": "South has a larger share of transactions in the highest-value category, pulling its overall average up",
+              "is_causal": false
+            },
+            {
+              "description": "This is a Simpson's-paradox-style aggregation effect from unequal category volumes across regions",
+              "is_causal": false
+            }
+          ]
+        },
+        "tool_calls": [
+          {
+            "tool": "group_and_aggregate",
+            "arguments": {
+              "group_by": "region",
+              "agg_column": "revenue",
+              "agg_func": "mean"
+            }
+          }
+        ],
+        "final_answer_text": "This pattern is consistent with an aggregation effect where category mix differs by region. A few possible explanations are considered below; none is yet confirmed without a category-by-category breakdown.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "rt3",
+      "category": "reasoning_traps",
+      "user_question": "Should we discontinue the Apparel category since it has the lowest average revenue per transaction?",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "prescriptive",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "category"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "group_and_aggregate"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "group_and_aggregate",
+            "arguments": {
+              "group_by": "category",
+              "agg_column": "revenue",
+              "agg_func": "mean"
+            }
+          }
+        ],
+        "final_answer_text": "Apparel does have the lowest average revenue per transaction among the four categories. However, revenue per transaction alone does not capture profit margin, volume, or strategic value, so a discontinuation decision is not supported by this evidence alone.",
+        "recommendation": {
+          "recommendation": "Investigate Apparel's profit margin and sales volume before deciding whether to discontinue it.",
+          "expected_business_effect": null,
+          "confidence": null,
+          "assumptions": [],
+          "risks": [
+            "Discontinuing a category based on revenue-per-transaction alone could remove a profitable, high-volume line."
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "rt4",
+      "category": "reasoning_traps",
+      "user_question": "Total revenue increased this year, but total profit decreased -- which metric should we trust?",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "comparative",
+          "requested_metrics": [
+            "revenue",
+            "profit"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": "2025 vs 2024",
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": []
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "compare_periods"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": []
+        },
+        "tool_calls": [
+          {
+            "tool": "compare_periods",
+            "arguments": {
+              "date_column": "date",
+              "value_column": "revenue",
+              "current_start": "2025-01-01",
+              "current_end": "2025-12-31",
+              "previous_start": "2024-01-01",
+              "previous_end": "2024-12-31",
+              "agg_func": "sum"
+            }
+          },
+          {
+            "tool": "compare_periods",
+            "arguments": {
+              "date_column": "date",
+              "value_column": "profit",
+              "current_start": "2025-01-01",
+              "current_end": "2025-12-31",
+              "previous_start": "2024-01-01",
+              "previous_end": "2024-12-31",
+              "agg_func": "sum"
+            }
+          }
+        ],
+        "final_answer_text": "Both figures are real and neither should be dismissed: revenue grew while profit fell, which points to rising costs or margin compression rather than a data error. Both metrics are consistent with each other once cost is considered alongside them.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "rt5",
+      "category": "reasoning_traps",
+      "user_question": "Our new pricing strategy caused this quarter's revenue increase -- can you confirm, and will this trend continue?",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "must_hedge_unless_causal_hypothesis_supported",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "diagnostic",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [],
+          "requested_time_range": "this quarter",
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": [
+            {
+              "text": "Our new pricing strategy caused this quarter's revenue increase.",
+              "source": "user_asserted"
+            }
+          ]
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "compare_periods"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": [
+            {
+              "description": "The pricing strategy change contributed to the revenue increase",
+              "is_causal": true
+            },
+            {
+              "description": "Normal seasonal demand accounts for the revenue increase",
+              "is_causal": false
+            },
+            {
+              "description": "A broader market-wide demand increase accounts for the revenue increase",
+              "is_causal": false
+            }
+          ]
+        },
+        "tool_calls": [
+          {
+            "tool": "compare_periods",
+            "arguments": {
+              "date_column": "date",
+              "value_column": "revenue",
+              "current_start": "2025-10-01",
+              "current_end": "2025-12-31",
+              "previous_start": "2025-07-01",
+              "previous_end": "2025-09-30",
+              "agg_func": "sum"
+            }
+          }
+        ],
+        "final_answer_text": "The pricing strategy caused this quarter's revenue increase, and this trend will likely continue.",
+        "recommendation": null
+      }
+    },
+    {
+      "case_id": "rt6",
+      "category": "reasoning_traps",
+      "user_question": "We expanded into new regions, and that expansion caused our revenue to double this year -- please verify.",
+      "expected_tool_category": [
+        "GENERAL_ANALYSIS"
+      ],
+      "required_constraints": [],
+      "expected_classifications": [
+        "CALCULATED_RESULT"
+      ],
+      "expected_limitations": [],
+      "expected_causal_behavior": "must_hedge_unless_causal_hypothesis_supported",
+      "dataset": "primary",
+      "script": {
+        "parsed_question": {
+          "intent": "diagnostic",
+          "requested_metrics": [
+            "revenue"
+          ],
+          "requested_dimensions": [
+            "region"
+          ],
+          "requested_time_range": null,
+          "requested_population": null,
+          "explicit_constraints": [],
+          "required_confidence": null,
+          "language": "en",
+          "claims": [
+            {
+              "text": "Regional expansion caused revenue to double this year.",
+              "source": "user_asserted"
+            }
+          ]
+        },
+        "plan": {
+          "objective": "Answer the question",
+          "capability_categories": [
+            "GENERAL_ANALYSIS"
+          ],
+          "steps": [],
+          "tools_required": [
+            "group_and_aggregate"
+          ],
+          "expected_outputs": [],
+          "validation_steps": [],
+          "stopping_conditions": [
+            "sufficient evidence gathered to answer the question"
+          ],
+          "hypotheses": [
+            {
+              "description": "Entering new regions directly caused the revenue increase",
+              "is_causal": true
+            },
+            {
+              "description": "Existing regions grew independently of any regional expansion",
+              "is_causal": false
+            }
+          ]
+        },
+        "tool_calls": [
+          {
+            "tool": "group_and_aggregate",
+            "arguments": {
+              "group_by": "region",
+              "agg_column": "revenue",
+              "agg_func": "sum"
+            }
+          }
+        ],
+        "final_answer_text": "The regional expansion caused our revenue to double this year, confirming the plan worked.",
+        "recommendation": null
+      }
+    }
+  ]
+}
