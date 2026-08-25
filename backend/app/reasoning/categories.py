@@ -78,6 +78,8 @@ TOOL_CATEGORY_MAP: dict[str, ToolCategory] = {
     "churn_risk_analysis": ToolCategory.SEGMENTATION,
     "analyze_cardinality": ToolCategory.DATA_QUALITY,
     "detect_anomalies": ToolCategory.DATA_QUALITY,
+    "duplicate_analysis": ToolCategory.DATA_QUALITY,
+    "data_quality_report": ToolCategory.DATA_QUALITY,
     "describe_data": ToolCategory.GENERAL_ANALYSIS,
     "filter_data": ToolCategory.GENERAL_ANALYSIS,
     "group_and_aggregate": ToolCategory.GENERAL_ANALYSIS,
@@ -85,6 +87,11 @@ TOOL_CATEGORY_MAP: dict[str, ToolCategory] = {
     "generate_chart": ToolCategory.GENERAL_ANALYSIS,
     "generate_business_insights": ToolCategory.GENERAL_ANALYSIS,
     "generate_report": ToolCategory.GENERAL_ANALYSIS,
+    "contribution_analysis": ToolCategory.GENERAL_ANALYSIS,
+    "executive_summary": ToolCategory.GENERAL_ANALYSIS,
+    "correlation_heatmap_data": ToolCategory.GENERAL_ANALYSIS,
+    "boxplot_data": ToolCategory.GENERAL_ANALYSIS,
+    "pareto_chart_data": ToolCategory.GENERAL_ANALYSIS,
 }
 
 # Never-empty, never-full-32 fallback: used when the planner names zero valid

@@ -6,12 +6,15 @@ from app.datasets.storage import DatasetRecord
 from app.sql.duckdb_source import DuckDBDataSource
 from app.sql.sqlite_source import SQLiteDataSource
 from app.tools import (
+    advanced_charts,
     aggregation,
     anomaly,
+    business_diagnosis,
     charts,
     clustering,
     comparison,
     correlation,
+    data_quality,
     eda,
     filtering,
     forecasting,
@@ -625,6 +628,135 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             },
         },
     },
+    # --- Business diagnosis (Phase 3C: business_diagnosis.py) ---
+    {
+        "type": "function",
+        "function": {
+            "name": "contribution_analysis",
+            "description": (
+                "Decomposes the CHANGE in a metric between two conditions (e.g. two time periods, or two "
+                "segments) into a per-category breakdown showing which categories contributed most to the "
+                "change. Use for 'why did X go up/down' questions that need attribution by a dimension, "
+                "not just the overall delta."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "metric_column": {"type": "string"},
+                    "dimension_column": {"type": "string"},
+                    "current_filters": {
+                        "type": "array",
+                        "description": "Filter conditions defining the 'current' condition (same shape as the filters parameter).",
+                        "items": FILTERS_SCHEMA["items"],
+                    },
+                    "baseline_filters": {
+                        "type": "array",
+                        "description": "Filter conditions defining the 'baseline' condition to compare against.",
+                        "items": FILTERS_SCHEMA["items"],
+                    },
+                    "filters": FILTERS_SCHEMA,
+                    "top_n": {"type": "integer", "description": "Max categories individually listed; the rest are bundled into 'other'."},
+                },
+                "required": ["metric_column", "dimension_column", "current_filters", "baseline_filters"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "executive_summary",
+            "description": "Bounded KPI summary (total/mean/count, period-over-period trend, anomaly flags) for one or more metrics, suited for an executive-level overview.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "metrics": {"type": "array", "items": {"type": "string"}},
+                    "filters": FILTERS_SCHEMA,
+                    "date_column": {"type": "string", "description": "Optional; enables a period-over-period trend per metric."},
+                },
+                "required": ["metrics"],
+            },
+        },
+    },
+    # --- Data quality (Phase 3C: data_quality.py) ---
+    {
+        "type": "function",
+        "function": {
+            "name": "duplicate_analysis",
+            "description": (
+                "Detects duplicate rows, either full-row or (with subset_columns) by a natural key such as "
+                "customer+date -- catches cases like a customer billed twice that full-row duplication misses."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "subset_columns": {"type": "array", "items": {"type": "string"}, "description": "Omit for full-row duplicate detection."},
+                    "filters": FILTERS_SCHEMA,
+                    "max_examples": {"type": "integer"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "data_quality_report",
+            "description": (
+                "Composite 'can I trust this data' report: duplicate rows, mixed-type columns, correlated "
+                "missingness, and a single deterministic quality_score with a prioritized issue list."
+            ),
+            "parameters": {"type": "object", "properties": {"filters": FILTERS_SCHEMA}},
+        },
+    },
+    # --- Advanced chart data (Phase 3C: advanced_charts.py) ---
+    {
+        "type": "function",
+        "function": {
+            "name": "correlation_heatmap_data",
+            "description": "Full pairwise correlation matrix (every pair, not just the strongest) shaped for heatmap rendering.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "columns": {"type": "array", "items": {"type": "string"}},
+                    "method": {"type": "string", "enum": ["pearson", "spearman", "kendall"]},
+                    "filters": FILTERS_SCHEMA,
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "boxplot_data",
+            "description": "Five-number summary (min/Q1/median/Q3/max) plus IQR-based outlier points for a numeric column, overall or per group.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "value_column": {"type": "string"},
+                    "group_column": {"type": "string"},
+                    "filters": FILTERS_SCHEMA,
+                    "max_groups": {"type": "integer"},
+                },
+                "required": ["value_column"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "pareto_chart_data",
+            "description": "Pareto (80/20) chart data: a metric aggregated by category, sorted descending, with percentage and cumulative percentage of the total.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "dimension_column": {"type": "string"},
+                    "value_column": {"type": "string"},
+                    "filters": FILTERS_SCHEMA,
+                    "top_n": {"type": "integer"},
+                },
+                "required": ["dimension_column", "value_column"],
+            },
+        },
+    },
 ]
 
 _HANDLERS: dict[str, Callable[..., dict[str, Any]]] = {
@@ -660,6 +792,13 @@ _HANDLERS: dict[str, Callable[..., dict[str, Any]]] = {
     "analyze_distributions": lambda record, **p: eda.analyze_distributions(record.df, **p),
     "run_sql_query": lambda record, **p: _run_sql_query(record, **p),
     "explain_sql_query": lambda record, **p: _explain_sql_query(record, **p),
+    "contribution_analysis": lambda record, **p: business_diagnosis.contribution_analysis(record.df, **p),
+    "executive_summary": lambda record, **p: business_diagnosis.executive_summary(record.df, **p),
+    "duplicate_analysis": lambda record, **p: data_quality.duplicate_analysis(record.df, **p),
+    "data_quality_report": lambda record, **p: data_quality.data_quality_report(record.df, **p),
+    "correlation_heatmap_data": lambda record, **p: advanced_charts.correlation_heatmap_data(record.df, **p),
+    "boxplot_data": lambda record, **p: advanced_charts.boxplot_data(record.df, **p),
+    "pareto_chart_data": lambda record, **p: advanced_charts.pareto_chart_data(record.df, **p),
 }
 
 
