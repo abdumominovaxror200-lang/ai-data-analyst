@@ -80,7 +80,11 @@ class Evidence(BaseModel):
 
 # --- 4. Hypothesis --------------------------------------------------------------
 
-HypothesisStatus = Literal["untested", "supported", "weakly_supported", "unsupported", "contradicted"]
+HypothesisStatus = Literal["untested", "supported", "weakly_supported", "unsupported", "contradicted", "inconclusive"]
+# "unsupported" = evidence exists and does not support the hypothesis. "contradicted" =
+# evidence actively points the opposite direction (stronger than "unsupported").
+# "inconclusive" (Phase 4 P1) = evidence was gathered but is too weak/ambiguous to
+# either support or contradict -- distinct from "untested" (no evidence gathered at all).
 
 
 class Hypothesis(BaseModel):
@@ -183,5 +187,9 @@ class AnalysisResult(BaseModel):
     hypotheses: list[Hypothesis] = Field(default_factory=list)
     limitations: list[Limitation] = Field(default_factory=list)
     recommendation: Recommendation | None = None
+    # Phase 4 P2: machine-checkable epistemic-principle violations found in this
+    # result by app.reasoning.epistemic_checks -- empty list means no violation was
+    # detected, not that none were checked (see that module for exactly what's covered).
+    principle_violations: list[str] = Field(default_factory=list)
     final_answer_text: str
     reasoning_trace: list[str] = Field(default_factory=list)
