@@ -147,6 +147,22 @@ direct-implementation pattern used for Phase 3A. The 6-agent plan is not discard
 just not used for this pass — worth revisiting if a future wave needs to parallelize
 further reasoning-layer work.
 
+## Decided (this session) — Phase 3C findings requiring a future decision
+
+QA-BENCHMARK-ENGINEER's honesty audit (Phase 3C Part D/H) found two real, disclosed
+gaps, not fixed this phase (correctly deferred by the finding agent):
+1. `causation_guard.py`'s phrase list is fixed/literal and bypassable by paraphrase
+   ("is clearly responsible for" is not hedged). Needs a broader detection approach
+   (embedding-similarity, a small classifier, or at minimum a much longer phrase
+   list) before this guard can be trusted against adversarial phrasing, not just
+   the literal phrases already tested.
+2. `Hypothesis.status` is never updated away from `"untested"` anywhere in the real
+   pipeline (`verifier.py` doesn't set it, nothing else does either) — the
+   causation guard's "justified causal claim" branch is dead code today. Needs a
+   decision: should some future stage actually promote a hypothesis's status based
+   on evidence strength, and if so, what's the rule?
+Both logged here so a future wave doesn't have to rediscover them.
+
 ## Open — need a decision before the relevant wave starts
 
 1a. **New API route (`POST /api/analyze`) vs. a `mode=deep` flag on the existing chat
