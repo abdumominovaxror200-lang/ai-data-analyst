@@ -40,7 +40,18 @@ _SYSTEM_PROMPT = (
     "separate strings, verbatim enough to be checked against the data later. claims: "
     "any factual assertion the question makes or implies that should be verified "
     "against the data before being trusted, tagged user_asserted (the user stated it) "
-    "or system_inferred (you inferred it from phrasing)."
+    "or system_inferred (you inferred it from phrasing).\n\n"
+    "IMPORTANT: a question about the dataset's own SHAPE or STRUCTURE -- 'how many "
+    "rows/records does this have', 'how many columns', 'what columns are there', 'what "
+    "does this dataset look like' -- is NEVER a request for a metric column literally "
+    "named 'row_count'/'rows'/'count'. Never invent a metric name out of a word like "
+    "'rows', 'records', 'entries', or 'columns' used in this structural sense --leave "
+    "requested_metrics EMPTY for these questions (the dataset-shape answer comes from "
+    "profiling the dataset itself, not from a named column). Only put something in "
+    "requested_metrics when the user is asking about the VALUE of an actual business "
+    "measure (revenue, profit, quantity, etc.), not the shape of the data. Example: "
+    "'How many rows are in this dataset?' -> requested_metrics: [] (this is a "
+    "descriptive question about dataset size, not about a column called 'rows')."
 )
 
 

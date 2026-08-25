@@ -25,6 +25,15 @@ from app.reasoning.contracts import Evidence, Finding, FindingClassification, Li
 
 _CROSS_CHECK_RELATIVE_TOLERANCE = 0.10  # 10%: close enough to call "agreeing"
 _LOW_SAMPLE_SIZE_THRESHOLD = 10
+# A single extreme value (or a small handful) pulling the max this many standard
+# deviations above the mean is a strong, cheap signal the mean is not representative
+# -- found via real-LLM adversarial testing: a mean skewed by one $80,000 outlier
+# among ~$800 typical orders was reported unhedged, with no outlier mention, because
+# nothing forced the check; the LLM simply didn't choose to call detect_anomalies.
+# This makes the check unconditional -- it reads describe_data's own already-computed
+# mean/std/max (no extra tool call) rather than depending on the model electing to
+# investigate further.
+_OUTLIER_RATIO_THRESHOLD = 4.0
 
 
 def _classification_for(evidence_type: str) -> FindingClassification:
@@ -133,6 +142,46 @@ def _cross_check(evidence: list[Evidence]) -> tuple[set[str], list[Limitation]]:
     return corroborated, limitations
 
 
+def _describe_data_outlier_limitations(evidence: list[Evidence]) -> list[Limitation]:
+    """Deterministically flags a describe_data-reported mean at risk of being
+    dominated by extreme outlier value(s), independent of whether the model chose to
+    call detect_anomalies. Reads only fields describe_data already computed -- no
+    extra tool call."""
+    limitations: list[Limitation] = []
+    for i, ev in enumerate(evidence):
+        if ev.source_tool != "describe_data":
+            continue
+        columns = ev.result_summary.get("columns")
+        if not isinstance(columns, dict):
+            continue
+        flagged_cols = []
+        for col, stats in columns.items():
+            if not isinstance(stats, dict):
+                continue
+            mean, std, max_v = stats.get("mean"), stats.get("std"), stats.get("max")
+            if not all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in (mean, std, max_v)):
+                continue
+            if not std:  # zero, None already excluded above, but guard div-by-zero explicitly
+                continue
+            if (max_v - mean) / std >= _OUTLIER_RATIO_THRESHOLD:
+                flagged_cols.append(col)
+        if flagged_cols:
+            limitations.append(
+                Limitation(
+                    category="methodological",
+                    text=(
+                        f"describe_data's mean for {', '.join(flagged_cols)} may be distorted by an extreme "
+                        f"outlier value (the maximum is at least {_OUTLIER_RATIO_THRESHOLD:.0f} standard "
+                        "deviations above the mean) -- consider the median, or check for outliers, before "
+                        "treating the mean as representative."
+                    ),
+                    severity="reduces_confidence",
+                    affected_findings=[f"finding_{i}"],
+                )
+            )
+    return limitations
+
+
 def build_findings(evidence: list[Evidence]) -> tuple[list[Finding], list[Limitation]]:
     corroborated, cross_check_limitations = _cross_check(evidence)
 
@@ -164,4 +213,6 @@ def build_findings(evidence: list[Evidence]) -> tuple[list[Finding], list[Limita
                 )
             )
 
-    return findings, cross_check_limitations + sample_size_limitations
+    outlier_limitations = _describe_data_outlier_limitations(evidence)
+
+    return findings, cross_check_limitations + sample_size_limitations + outlier_limitations
