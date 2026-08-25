@@ -1,5 +1,68 @@
 # Completed Tasks
 
+## Phase 4 — ANALYTICAL RELIABILITY & REAL-LLM VALIDATION — COMPLETE
+- OWNER: orchestrator (foundation, direct) + 6 parallel worktree agents:
+  CAUSATION-RELIABILITY-ENGINEER, RECOMMENDATION-GROUNDING-ENGINEER,
+  HYPOTHESIS-ENGINEER, EPISTEMIC-REASONING-ENGINEER, REAL-LLM-BENCHMARK-ENGINEER,
+  ADVERSARIAL-LLM-QA-ENGINEER.
+- STATUS: COMPLETE. All 6 agents' work merged, wired into `orchestrator.py`,
+  889/889 deterministic tests passing (+ 71 correctly-gated real-LLM tests skipped
+  by default). See the full chat report for the required 7-question honest
+  assessment (what the agent can/can't do, scripted vs. real-LLM performance,
+  dangerous failures, what remains before production quality).
+
+**P0 fixes, both closed and verified end-to-end (not just unit-tested)**:
+- Causation guard redesigned (`causation_guard.py`) into 3 composable layers
+  (categorized stem-based patterns, hedge/modal context detection, structured
+  `RelationshipMention` classification). The exact documented bypass
+  ("is clearly responsible for") is now caught — verified by re-running the
+  actual failing test from the prior phase, which now fails in the *opposite*
+  direction (asserting the bypass still exists) and had to be updated to assert
+  the fix instead.
+- Recommendation grounding (`recommendation_grounding.py`, new) computes
+  evidence-strength-based confidence ceilings and is now wired into
+  `orchestrator.py` — an LLM's stated "high" confidence is deterministically
+  capped when the evidence doesn't support it. Verified end-to-end: the adv_15
+  adversarial case's overclaiming recommendation no longer survives with "high"
+  confidence in the real pipeline output.
+
+**P1 work**:
+- `Hypothesis.status` is now evidence-derived (`hypothesis_evaluator.py`, wired
+  into `orchestrator.py`) — no longer permanently stuck at "untested". Added
+  "inconclusive" as a 6th status value (additive contract change).
+- Real-LLM benchmark harness (`tests/benchmark/real_llm/runner.py`, built as
+  foundation before the parallel wave) + 37 professional cases + 15 adversarial
+  cases, all gated behind `RUN_REAL_LLM_BENCHMARK=1` — zero network calls in
+  ordinary `pytest -q`. **Real, live results obtained** (not just scripted):
+  see chat report for the actual numbers and the two genuinely important
+  findings surfaced only by real-LLM testing (a trivial row-count question
+  where the model never called `profile_dataset` and confabulated a wrong
+  reason instead; an outlier-skewed average presented unhedged as a clean
+  operational number).
+- Analyst-quality metrics reported per-dimension (not one percentage) — see
+  chat report.
+
+**P2 work**:
+- `epistemic_checks.py` (new) — 10 machine-checkable principle validators,
+  wired into `orchestrator.py`, populating the new `AnalysisResult.
+  principle_violations` field on every path including both early-stop branches.
+- Planner's hypothesis generation tightened: cap 4→3, prompt enriched with a
+  "consider seasonality/pricing/traffic/product-mix/churn/data-quality/external
+  factors when relevant" checklist (not forced every time).
+
+**Operational note**: a shared Groq API key across concurrent live-LLM agents
+hit its **daily** token quota (200,000 TPD) mid-wave — both real-LLM agents
+disclosed this honestly rather than fabricating results, and reported the
+partial-but-real results they did obtain. The orchestrator separately ran a
+12-case representative sample after quota partially recovered — see chat report
+for those numbers. Full 52-case live re-runs need either a fresh daily quota
+window or a dedicated (non-shared) key.
+
+**Regression**: 760 (Phase 4 start) → 889 passed + 71 skipped (960 collected),
+0 failures, 0 regressions at any integration step. Two adversarial-benchmark
+tests needed updating because their assertions had encoded the now-fixed bugs
+as expected behavior (both flagged in advance by the fixing agents themselves).
+
 ## Phase 3C — PRODUCTION INTEGRATION + PROFESSIONAL ANALYST BENCHMARK — COMPLETE
 - OWNER: orchestrator (Parts A/B/E-foundation, direct) + 5 parallel worktree agents
   (Part H): BUSINESS-ANALYTICS-ENGINEER, DATA-QUALITY-ENGINEER,

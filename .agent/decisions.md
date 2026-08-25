@@ -147,21 +147,44 @@ direct-implementation pattern used for Phase 3A. The 6-agent plan is not discard
 just not used for this pass — worth revisiting if a future wave needs to parallelize
 further reasoning-layer work.
 
-## Decided (this session) — Phase 3C findings requiring a future decision
+## Decided (this session) — Phase 3C findings, RESOLVED in Phase 4
 
 QA-BENCHMARK-ENGINEER's honesty audit (Phase 3C Part D/H) found two real, disclosed
-gaps, not fixed this phase (correctly deferred by the finding agent):
-1. `causation_guard.py`'s phrase list is fixed/literal and bypassable by paraphrase
-   ("is clearly responsible for" is not hedged). Needs a broader detection approach
-   (embedding-similarity, a small classifier, or at minimum a much longer phrase
-   list) before this guard can be trusted against adversarial phrasing, not just
-   the literal phrases already tested.
-2. `Hypothesis.status` is never updated away from `"untested"` anywhere in the real
-   pipeline (`verifier.py` doesn't set it, nothing else does either) — the
-   causation guard's "justified causal claim" branch is dead code today. Needs a
-   decision: should some future stage actually promote a hypothesis's status based
-   on evidence strength, and if so, what's the rule?
-Both logged here so a future wave doesn't have to rediscover them.
+gaps. **Both closed in Phase 4, verified end-to-end, not just unit-tested:**
+1. ~~`causation_guard.py`'s phrase list is fixed/literal and bypassable by
+   paraphrase~~ — **FIXED**: redesigned into 3 layers (categorized stem-based
+   patterns, hedge-context detection, structured relationship classification). The
+   exact "is clearly responsible for" bypass no longer exists — proven by the prior
+   phase's own regression test, which now fails in the opposite direction and had
+   to be updated.
+2. ~~`Hypothesis.status` is never updated away from `"untested"`~~ — **FIXED**:
+   `hypothesis_evaluator.py` derives status deterministically from linked evidence
+   (never from the LLM declaring itself "supported"), wired into `orchestrator.py`.
+   The causation guard's "justified causal claim" branch is reachable in production
+   for the first time.
+
+## Decided (this session) — Phase 4 findings for a future decision
+
+1. **Real-LLM testing surfaced two new, more concerning findings than anything the
+   scripted benchmarks found** (scripted benchmarks structurally cannot surface
+   these, since the script always specifies which tool gets called):
+   - For the simplest possible question ("how many rows are in this dataset"), the
+     real model (`openai/gpt-oss-120b` via Groq) did not call `profile_dataset` at
+     all and confabulated a wrong reason (claimed a nonexistent "row_count" column
+     was needed) instead of just invoking the one obvious tool.
+   - Asked to use an outlier-distorted average as an operational threshold, the
+     real model returned the raw skewed figure ($3,957.59, distorted by one
+     $80,000 outlier among 25 orders) with no hedge or outlier mention.
+   Neither is fixed this phase — both are reported honestly in the Phase 4 chat
+   report as open reliability gaps, not swept under the rug. Worth a dedicated
+   future pass on planner robustness (the first finding) and a mandatory
+   outlier-check step before any tool result feeds a numeric claim used for a
+   business decision (the second).
+2. A shared Groq API key across concurrent live-LLM agents exhausted its **daily**
+   token quota (200,000 TPD) — a session-external constraint, not something a
+   retry/backoff can wait out. Future live-LLM waves should use a dedicated key per
+   concurrent agent, or serialize live-LLM test execution, or budget quota
+   explicitly before launching multiple live-testing agents in parallel.
 
 ## Open — need a decision before the relevant wave starts
 
