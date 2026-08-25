@@ -60,10 +60,16 @@ def test_causal_language_is_permitted_when_a_supported_causal_hypothesis_exists(
     assert rewritten == text
 
 
-def test_causal_language_is_permitted_for_weakly_supported_hypothesis_too():
+def test_weakly_supported_hypothesis_does_not_excuse_unhedged_causal_language():
+    """Tightened during Phase 4 integration: 'weakly_supported' is explicitly weak/
+    untested-significance evidence (see hypothesis_evaluator.py) -- discovered via a
+    real professional-benchmark case (rt5) where a plain period-over-period
+    comparison, with no significance test, reached 'weakly_supported' and incorrectly
+    excused an unhedged causal claim. Only 'supported' excuses unhedged language now."""
     hyps = [Hypothesis(id="h1", description="Region A caused decline", is_causal=True, status="weakly_supported")]
     rewritten, hedged, _ = enforce_causation_guard("This was due to Region A.", hyps)
-    assert hedged is False
+    assert hedged is True
+    assert "due to" not in rewritten.lower()
 
 
 def test_non_causal_hypothesis_does_not_excuse_causal_language():
@@ -331,7 +337,11 @@ def test_evidence_gate_also_covers_the_new_responsible_for_pattern():
 
 
 def test_evidence_gate_also_covers_the_new_triggered_pattern():
-    hyps = [Hypothesis(id="h1", description="Outage triggered decline", is_causal=True, status="weakly_supported")]
+    # Uses "supported" (not "weakly_supported", tightened during Phase 4 integration
+    # -- see test_weakly_supported_hypothesis_does_not_excuse_unhedged_causal_language)
+    # to keep testing what this test is actually about: the new "triggered" pattern
+    # is covered by the evidence gate at all, same as every other Layer 1 pattern.
+    hyps = [Hypothesis(id="h1", description="Outage triggered decline", is_causal=True, status="supported")]
     text = "The outage triggered the revenue decline."
     rewritten, hedged, matched = enforce_causation_guard(text, hyps)
     assert hedged is False

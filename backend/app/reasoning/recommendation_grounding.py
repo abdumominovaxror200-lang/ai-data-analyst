@@ -284,8 +284,12 @@ def _has_justifying_causal_hypothesis(hypotheses: list[Hypothesis]) -> bool:
     # Mirrors causation_guard._has_justifying_causal_hypothesis's exact test --
     # duplicated rather than imported since that name is private to that module, but
     # kept intentionally identical so the two modules never disagree about what
-    # "justified" causation means.
-    return any(h.is_causal and h.status in ("supported", "weakly_supported") for h in hypotheses)
+    # "justified" causation means. Tightened to "supported" only during Phase 4
+    # integration (see the matching comment in causation_guard.py for the full
+    # rationale) -- "weakly_supported" is explicitly weak/untested-significance
+    # evidence and must not excuse an unhedged causal claim or a high-confidence
+    # causal recommendation either.
+    return any(h.is_causal and h.status == "supported" for h in hypotheses)
 
 
 def _recommendation_uses_causal_language(recommendation: Recommendation) -> bool:

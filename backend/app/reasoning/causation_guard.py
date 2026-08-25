@@ -324,7 +324,22 @@ def find_causal_phrases(text: str) -> list[str]:
 
 
 def _has_justifying_causal_hypothesis(hypotheses: list[Hypothesis]) -> bool:
-    return any(h.is_causal and h.status in ("supported", "weakly_supported") for h in hypotheses)
+    # Phase 4 integration fix: originally excused both "supported" and
+    # "weakly_supported" -- harmless when this was written (Hypothesis.status could
+    # never actually leave "untested" through the real pipeline, so this branch was
+    # dead code). Once hypothesis_evaluator.py made status genuinely evidence-derived,
+    # this surfaced a real gap: "weakly_supported" is explicitly defined (see
+    # hypothesis_evaluator.py) as "suggestive but not from a formal significance
+    # test, or significant with a negligible effect" -- exactly the evidence strength
+    # that must NOT be enough to unlock an *unhedged* causal claim (found via a real
+    # professional-benchmark case, rt5: a plain period-over-period revenue comparison
+    # with no significance test reached "weakly_supported" and incorrectly excused
+    # "the pricing strategy caused this quarter's revenue increase"). Only "supported"
+    # -- backed by an actual significant, meaningful-effect result -- excuses unhedged
+    # causal language now. "weakly_supported" causal hypotheses remain expressible,
+    # just only in hedged form ("may have contributed to"), which Layer 2 already
+    # allows unconditionally regardless of hypothesis status.
+    return any(h.is_causal and h.status == "supported" for h in hypotheses)
 
 
 def enforce_causation_guard(text: str, hypotheses: list[Hypothesis]) -> tuple[str, bool, list[str]]:
