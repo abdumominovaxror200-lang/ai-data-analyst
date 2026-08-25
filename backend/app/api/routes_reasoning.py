@@ -1,0 +1,91 @@
+from __future__ import annotations
+
+import logging
+
+from fastapi import APIRouter, HTTPException
+
+from app.agent.providers import LLMProviderError, build_provider_from_settings
+from app.datasets.storage import DatasetNotFoundError, get_dataset_store
+from app.reasoning.orchestrator import ReasoningOrchestrator
+from app.schemas import (
+    FindingOut,
+    HypothesisOut,
+    LimitationOut,
+    ReasonRequest,
+    ReasonResponse,
+    RecommendationOut,
+)
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+
+@router.post("/reason", response_model=ReasonResponse)
+def reason(request: ReasonRequest) -> ReasonResponse:
+    """Production entry point for the Phase 3B reasoning layer (Phase 3C Part A).
+
+    Deliberately a NEW endpoint alongside the existing `/api/chat`, not a
+    replacement -- `/api/chat` (DataAnalystAgent's direct tool-calling loop) is
+    unchanged and remains fully available (Part B backward-compatibility
+    requirement). This route is the bounded, evidence-classified path; `/api/chat`
+    remains the faster, simpler path for callers that don't need it.
+
+    Reuses the exact dataset-lookup and provider-construction pattern
+    `routes_chat.chat` already uses -- no new dataset access or provider wiring
+    logic invented here.
+    """
+    store = get_dataset_store()
+    try:
+        record = store.get(request.dataset_id)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    try:
+        provider = build_provider_from_settings()
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=f"AI provider not configured: {exc}") from exc
+
+    orchestrator = ReasoningOrchestrator(provider)
+    try:
+        result = orchestrator.analyze(record, request.message)
+    except LLMProviderError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    logger.info(
+        "reason dataset_id=%s intent=%s findings=%d evidence=%d",
+        request.dataset_id,
+        result.question.intent,
+        len(result.findings),
+        len(result.evidence),
+    )
+
+    return ReasonResponse(
+        answer=result.final_answer_text,
+        intent=result.question.intent,
+        findings=[
+            FindingOut(
+                statement=f.statement,
+                classification=f.classification,
+                cross_checked=f.cross_checked,
+                uncertainty_level=f.uncertainty.level if f.uncertainty else None,
+            )
+            for f in result.findings
+        ],
+        limitations=[LimitationOut(category=l.category, text=l.text, severity=l.severity) for l in result.limitations],
+        hypotheses=[
+            HypothesisOut(description=h.description, is_causal=h.is_causal, status=h.status) for h in result.hypotheses
+        ],
+        recommendation=(
+            RecommendationOut(
+                recommendation=result.recommendation.recommendation,
+                expected_business_effect=result.recommendation.expected_business_effect,
+                confidence=result.recommendation.confidence,
+                assumptions=result.recommendation.assumptions,
+                risks=result.recommendation.risks,
+            )
+            if result.recommendation
+            else None
+        ),
+        tools_used=[e.source_tool for e in result.evidence],
+        reasoning_trace=result.reasoning_trace,
+    )

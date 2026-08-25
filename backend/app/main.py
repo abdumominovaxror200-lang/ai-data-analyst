@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import routes_analysis, routes_chat, routes_datasets, routes_health, routes_reports
+from app.api import routes_analysis, routes_chat, routes_datasets, routes_health, routes_reasoning, routes_reports
 from app.config import get_settings
 from app.datasets.validation import ValidationError
 from app.logging_config import configure_logging, new_request_id, request_id_var
@@ -64,4 +64,5 @@ app.include_router(routes_health.router, prefix="/api", tags=["health"])
 app.include_router(routes_datasets.router, prefix="/api", tags=["datasets"])
 app.include_router(routes_analysis.router, prefix="/api", tags=["analysis"])
 app.include_router(routes_chat.router, prefix="/api", tags=["chat"])
+app.include_router(routes_reasoning.router, prefix="/api", tags=["reasoning"])
 app.include_router(routes_reports.router, prefix="/api", tags=["reports"])

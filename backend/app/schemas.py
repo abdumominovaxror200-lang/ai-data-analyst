@@ -85,3 +85,52 @@ class ReportResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+# --- Phase 3C: reasoning-layer API response shapes (additive, append-only per the
+# schemas.py convention -- structure mirrors app.reasoning.contracts but is a
+# separate, response-scoped view: bounded, no raw tool payloads, no internal id
+# cross-references the client has no use for). ---
+
+
+class ReasonRequest(BaseModel):
+    dataset_id: str
+    message: str
+
+
+class FindingOut(BaseModel):
+    statement: str
+    classification: Literal["FACT", "CALCULATED_RESULT", "STATISTICAL_RESULT", "HYPOTHESIS", "ASSUMPTION", "UNKNOWN"]
+    cross_checked: bool = False
+    uncertainty_level: Literal["known", "estimated", "uncertain", "unavailable"] | None = None
+
+
+class LimitationOut(BaseModel):
+    category: str
+    text: str
+    severity: str
+
+
+class HypothesisOut(BaseModel):
+    description: str
+    is_causal: bool
+    status: str
+
+
+class RecommendationOut(BaseModel):
+    recommendation: str
+    expected_business_effect: str | None = None
+    confidence: Literal["high", "medium", "low"] | None = None
+    assumptions: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+
+
+class ReasonResponse(BaseModel):
+    answer: str
+    intent: str
+    findings: list[FindingOut] = Field(default_factory=list)
+    limitations: list[LimitationOut] = Field(default_factory=list)
+    hypotheses: list[HypothesisOut] = Field(default_factory=list)
+    recommendation: RecommendationOut | None = None
+    tools_used: list[str] = Field(default_factory=list)
+    reasoning_trace: list[str] = Field(default_factory=list)
