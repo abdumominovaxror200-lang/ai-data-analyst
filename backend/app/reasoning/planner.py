@@ -28,7 +28,10 @@ from app.reasoning.contracts import AnalysisPlan, AnalyticalQuestion, Claim, Hyp
 
 logger = logging.getLogger(__name__)
 
-_MAX_HYPOTHESES = 4
+_MAX_HYPOTHESES = 3  # Phase 4 P1: "maximum 3 competing hypotheses unless evidence
+# strongly requires fewer" -- fewer than 3 is fine and expected (e.g. 1-2 when
+# there's little basis for more), but the planner's raw output is always truncated
+# to at most 3 regardless of how many the model returns.
 
 _SYSTEM_PROMPT = (
     "You are the planning stage of an analytical reasoning pipeline. Given a parsed "
@@ -52,11 +55,19 @@ _SYSTEM_PROMPT = (
     "per-category tool lists) -- the execution stage validates this independently, so "
     "naming a tool here does not itself grant access to it.\n\n"
     "hypotheses: ONLY populate this for a diagnostic ('why did X happen') question -- "
-    "leave it an empty list otherwise. When populated, list 2 to 4 plausible, "
+    "leave it an empty list otherwise. When populated, list AT MOST 3 plausible, "
     "DISTINCT competing explanations grounded in what this dataset could plausibly "
-    "show (not wild speculation). Set is_causal=true only for an explanation that "
-    "claims X caused Y; most explanations grounded in correlational/observational "
-    "tools should be is_causal=false.\n\n"
+    "show (not wild speculation) -- fewer than 3 is fine, and expected, when the "
+    "evidence available to you doesn't strongly support that many distinct "
+    "explanations; never propose more than 3. When relevant to THIS SPECIFIC "
+    "question, consider explanations such as: seasonality, pricing changes, "
+    "traffic/demand shifts, product mix changes, customer churn, a data-quality "
+    "issue (e.g. a tracking/reporting change rather than a real business change), "
+    "and external factors -- this is a checklist of categories to consider, not a "
+    "requirement to address every one of them for every question; pick only the "
+    "ones that plausibly apply here. Set is_causal=true only for an explanation "
+    "that claims X caused Y; most explanations grounded in correlational/"
+    "observational tools should be is_causal=false.\n\n"
     "stopping_conditions should state, in plain language, what would make this "
     "analysis complete (e.g. 'a statistically significant result at alpha=0.05 either "
     "way' or 'the requested forecast horizon is produced with prediction intervals')."
