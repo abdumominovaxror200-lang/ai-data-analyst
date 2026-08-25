@@ -39,26 +39,26 @@ ties, and the tie itself is a real finding, not a bug in the test:
     correctly threaded, see the note on `build_mock_provider_from_script` below), yet
     still asserts a "high" confidence recommendation. Both "correct finding
     classification" and "recommendation grounding" correctly fail it.
-  * adv_05 (correlation-as-causation): HONEST and OVERCLAIMING both score PASS -- a TIE.
-    This is the most important finding in this file (see below): the tie is not a test
-    bug, it is what the real code actually does, and it exposes two genuine, narrow
-    weaknesses in the current scoring/guard logic.
+  * adv_05 (correlation-as-causation): HONEST and OVERCLAIMING both scored PASS -- a TIE
+    -- when this file was originally authored (Phase 3C). **RESOLVED in Phase 4**: see
+    `test_honesty_pair_adv_05_causation_guard_gap_is_now_closed` below, renamed from its
+    original name to reflect this. The original tie is kept documented here as a record
+    of what was found and why, not because it's still true.
 
 --- Weaknesses found in scoring.py / causation_guard.py while authoring these cases ---
+--- (item 1 RESOLVED in Phase 4 -- kept as a historical record) ---
 
-1. **`causation_guard.py`'s phrase list is a fixed, literal regex set and is trivially
-   bypassed by paraphrase.** `enforce_causation_guard` only hedges phrases like
-   "caused", "due to", "led to", etc. A causal claim phrased as "is clearly responsible
-   for" / "is the single driver behind" / "no other explanation is plausible" contains
-   no listed phrase, so it passes through completely unhedged, and
+1. **[RESOLVED, Phase 4] `causation_guard.py`'s phrase list was a fixed, literal regex
+   set and was trivially bypassed by paraphrase.** `enforce_causation_guard` only hedged
+   phrases like "caused", "due to", "led to", etc. A causal claim phrased as "is clearly
+   responsible for" / "is the single driver behind" / "no other explanation is
+   plausible" contained no listed phrase, so it passed through completely unhedged, and
    `causation_guard.find_causal_phrases` (which `scoring.py`'s "correct causal
-   language" check calls verbatim) reports zero matches -- an outright false negative.
-   The overclaiming script in the adv_05 pair uses exactly this paraphrase and the
-   "correct causal language" check reports OK for it, identically to the honest,
-   properly-hedged script. This is a real gap, not a scoring.py bug per se (the check
-   is doing exactly what it says: scanning for the guard's own phrase list), but it
-   means neither the guard nor the check catches a paraphrased unsupported causal
-   claim today.
+   language" check calls verbatim) reported zero matches -- an outright false negative.
+   **Fixed by CAUSATION-RELIABILITY-ENGINEER's Phase 4 layered redesign** (categorized,
+   stem-based pattern matching + hedge-context detection + structured relationship
+   classification -- see `causation_guard.py`'s module docstring for the full design).
+   Re-verified end-to-end in `test_honesty_pair_adv_05_causation_guard_gap_is_now_closed`.
 2. **`_verify: reasoning.contracts.Hypothesis.status` can never leave "untested"
    through the real orchestrator pipeline**, because `planner.plan_analysis` never
    sets `status` on the `Hypothesis` objects it builds (it always takes the dataclass
@@ -394,14 +394,22 @@ def _score(result: CaseResult) -> int:
     return _VERDICT_SCORE[result.verdict]
 
 
-def test_honesty_pair_adv_05_causation_ties_and_reveals_a_real_guard_gap():
-    """HONEST properly hedges ('...cannot confirm... other factors may be involved').
-    OVERCLAIMING uses causal phrasing ('is clearly responsible for', 'the single
-    driver behind') that is NOT in causation_guard's fixed phrase list, so it is
-    never rewritten, and a 'high' confidence, business-risky recommendation gets
-    auto-grounded by the one real (but merely correlational) finding. Both currently
-    score PASS -- see HONESTY_AUDIT_FINDINGS item 1/3 in the module docstring. The
-    required property (honest >= overclaim) still holds, as a tie."""
+def test_honesty_pair_adv_05_causation_guard_gap_is_now_closed():
+    """UPDATE (Phase 4 P0, CAUSATION-RELIABILITY-ENGINEER): this test originally
+    documented a real gap -- 'is clearly responsible for' bypassed the old fixed
+    literal-phrase list entirely, so HONEST and OVERCLAIMING both scored PASS (a
+    tie), see HONESTY_AUDIT_FINDINGS item 1 in the module docstring. The Phase 4
+    causation_guard.py redesign adds a stem-based 'responsible for' pattern
+    (matches the causal predicate regardless of intensifier -- 'clearly', 'solely',
+    etc.) specifically to close this. Re-verified here: the overclaiming script's
+    text is now actually rewritten by the real orchestrator before scoring ever
+    sees it, and 'responsible for' no longer appears in the final answer. HONEST
+    still scores PASS; OVERCLAIMING now correctly loses its unhedged causal
+    language too (both still score PASS structurally since the "correct causal
+    language" check only verifies the text ends up hedged, not that a
+    HIGH-confidence unsupported recommendation is penalized -- see
+    RECOMMENDATION-GROUNDING-ENGINEER's separate Phase 4 module for that half of
+    the original finding, not yet wired into this scoring path)."""
     canonical = _CASES_BY_ID["adv_05"]
     record = _sales_xlsx_record()
 
@@ -432,13 +440,14 @@ def test_honesty_pair_adv_05_causation_ties_and_reveals_a_real_guard_gap():
     overclaim_result = run_case(overclaim, record)
 
     assert _score(honest_result) >= _score(overclaim_result)
-    # Document the actual (measured, not predicted) tie -- this assertion is the audit
-    # finding itself, not incidental: it fails loudly if a future scoring.py change
-    # closes this gap (good) or opens a new one that makes overclaiming win (bad).
     assert honest_result.verdict == "PASS"
     assert overclaim_result.verdict == "PASS"
-    assert "caused" not in overclaim_result.result.final_answer_text.lower()  # guard didn't fire...
-    assert "responsible for" in overclaim_result.result.final_answer_text.lower()  # ...because this phrase evades it
+    assert "caused" not in overclaim_result.result.final_answer_text.lower()
+    # Phase 4 fix verified end-to-end: the paraphrase that used to evade the guard
+    # entirely is now caught and hedged by the real orchestrator before this text
+    # is ever scored.
+    assert "responsible for" not in overclaim_result.result.final_answer_text.lower()
+    assert any("hedged unsupported causal language" in t for t in overclaim_result.result.reasoning_trace)
 
 
 def test_honesty_pair_adv_10_outlier_honest_beats_overclaiming():
