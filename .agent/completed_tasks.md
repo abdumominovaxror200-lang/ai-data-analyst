@@ -1,5 +1,68 @@
 # Completed Tasks
 
+## Phase 3B — REASONING ARCHITECTURE FOUNDATION — COMPLETE
+- OWNER: orchestrator (direct — no subagent launched, per explicit instruction)
+- STATUS: COMPLETE, committed. 100% additive — `git status` confirmed zero existing
+  files modified, only new files under `backend/app/reasoning/`,
+  `backend/tests/reasoning/`, `backend/tests/benchmark/reasoning_questions.json`.
+- FILES CREATED: `backend/app/reasoning/{contracts,categories,causation_guard,
+  premise_validator,question_parser,planner,executor,verifier,synthesizer,
+  orchestrator,_structured_call}.py`; `backend/tests/reasoning/` (6 test files, 61
+  tests); `backend/tests/benchmark/reasoning_questions.json` (12-case foundation
+  fixture set, no score computed).
+- FILES MODIFIED: none.
+- REASONING CONTRACTS: all 9 requested (`AnalyticalQuestion`, `Claim`, `Evidence`,
+  `Hypothesis`, `AnalysisPlan`, `Finding`, `Uncertainty`, `Limitation`,
+  `Recommendation`) plus `AnalysisResult` as the typed pipeline output. Reconciled
+  against the earlier `reasoning-layer-design.md` sketch — see `contracts.py`'s module
+  docstring for the 3 notable differences (Uncertainty is categorical +
+  optional-quantitative, Hypothesis.status is 5-way, Recommendation.confidence is
+  nullable and never forced).
+- ORCHESTRATOR DESIGN: `ReasoningOrchestrator.analyze()` runs parse (LLM call 1) →
+  validate premise (deterministic) → [early stop: missing metric/dimension] → plan +
+  select capability categories (LLM call 2) → [early stop: no applicable capability] →
+  execute via the **existing, unmodified** `DataAnalystAgent`/`ToolRouter` loop → build
+  findings + cross-check (deterministic) → synthesize (LLM call 3, includes the
+  causation guard). Both early-stop paths use only 2 of the 3 calls. No second tool
+  loop exists anywhere in this package.
+- TOOL FILTERING: 32 tools classified into 10 capability categories
+  (`categories.py`, coverage-tested 1:1 against `tool_router.TOOL_SCHEMAS`). The
+  planner only ever sees the 10-category catalog, never the raw 32 schemas; the actual
+  enforcement is `executor.FilteredToolRouter`, which restricts `available_tools()`
+  to the resolved categories while delegating `execute()` to the real, unmodified
+  `ToolRouter` — a hallucinated category or tool name cannot make an out-of-scope tool
+  callable.
+- CONSTRAINT VALIDATION: `premise_validator.py`, fully deterministic (reuses
+  `profile_dataset`, zero extra LLM/tool calls). Catches: nonexistent
+  metric/dimension columns, requested time range exceeding actual date coverage
+  ("last 12 months" vs 8 months available — the exact spec example, now a regression
+  test), and order-of-magnitude scale-claim mismatches (the project's original
+  "10 million rows" benchmark finding, now a deterministic, tested code path instead
+  of a prose instruction).
+- CAUSATION GUARD: `causation_guard.py`, deterministic and standalone. Prompt-level
+  instruction in the synthesizer (first line of defense) plus a code-level regex
+  scan-and-hedge pass on the model's own output (second line, matching this project's
+  established "sandwich" pattern from the prompt-injection mitigation). Unhedged
+  causal phrasing is rewritten to hedged language UNLESS a `Hypothesis` with
+  `is_causal=True` and `status in {"supported","weakly_supported"}` justifies it.
+- TEST COUNT BEFORE: 568. TEST COUNT AFTER: **629** (568 + 61 new). FAILURES: 0.
+- COMMIT: `(see git log — "Phase 3B: reasoning architecture foundation")`.
+- REMAINING LIMITATIONS (honestly scoped, not hidden):
+  - No real-LLM integration test — this project has no existing gated live-Groq
+    pytest fixture to build on; adding one was judged out of scope for this phase
+    (per the task's own "only if already supported" instruction).
+  - Cross-checking (`verifier.py`) only corroborates evidence the plan already
+    gathered (same-metric agreement across tools) — it does not issue additional
+    verification tool calls. Documented as the deliberate "minimum viable" version.
+  - `premise_validator`'s population-scope check is not structurally validated
+    (free text) — logged as `unverifiable`, not silently trusted, but not deeply
+    checked either.
+  - Not wired into `agent.py`/an API route yet — `ReasoningOrchestrator` exists as a
+    standalone, fully-tested package but nothing calls it from the live chat endpoint.
+    That wiring, plus real-LLM validation against the 12-case benchmark seed (scoring
+    it, per the "no score claimed yet" rule), is Phase 3C — not started, per
+    instruction to stop here.
+
 ## Phase 3A — TOOLING INTEGRATION — COMPLETE
 - OWNER: orchestrator (direct — mechanical, well-scoped registration work, no
   subagent launched per explicit user instruction)

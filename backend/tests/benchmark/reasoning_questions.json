@@ -1,0 +1,159 @@
+{
+  "$schema_note": "Foundation fixture set for the reasoning-layer benchmark (Phase 3B.9). Distinct from questions.json (which measures tool-computation correctness -- 'did it get the right number'). This file measures reasoning soundness -- 'did it classify/hedge/flag correctly'. No scoring is computed against these yet, per explicit instruction: this is a seed set for a future scoring pass, not a claimed benchmark percentage. Each case's 'expected_*' fields are meant to be checked structurally against an AnalysisResult (see app/reasoning/contracts.py), not by free-text grading -- that is the payoff of the typed contracts built in this phase. Dataset facts for the primary fixture match tests/benchmark/questions.json.",
+  "primary_dataset": "data/demo/sales_data.xlsx",
+  "primary_dataset_facts": {
+    "rows": 4000,
+    "columns": 11,
+    "column_names": ["date", "product", "category", "region", "salesperson", "quantity", "unit_price", "revenue", "cost", "profit", "customer_id"],
+    "date_coverage": {"min": "2024-01-01", "max": "2025-12-31"}
+  },
+  "cases": [
+    {
+      "id": "r1",
+      "category": "descriptive",
+      "question_en": "What is the average revenue per transaction?",
+      "dataset": "primary",
+      "expected_capability": "GENERAL_ANALYSIS or EDA",
+      "expected_tool_category": ["GENERAL_ANALYSIS", "EDA"],
+      "expected_constraints": [],
+      "expected_finding_classifications": ["CALCULATED_RESULT"],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable"
+    },
+    {
+      "id": "r2",
+      "category": "missing_column",
+      "question_en": "What is our conversion rate this quarter?",
+      "dataset": "primary",
+      "expected_capability": "none -- 'conversion_rate' is not a column",
+      "expected_tool_category": [],
+      "expected_constraints": ["conversion_rate column must not exist in primary_dataset_facts.column_names"],
+      "expected_finding_classifications": ["UNKNOWN"],
+      "expected_limitations": [{"category": "missing_data", "severity": "blocks_conclusion"}],
+      "expected_causal_behavior": "not_applicable"
+    },
+    {
+      "id": "r3",
+      "category": "coverage_mismatch",
+      "question_en": "Show the revenue trend over the last 3 years.",
+      "dataset": "primary",
+      "expected_capability": "GENERAL_ANALYSIS or FORECASTING",
+      "expected_tool_category": ["GENERAL_ANALYSIS", "FORECASTING"],
+      "expected_constraints": ["requested 3 years (~1095 days) exceeds actual ~730-day coverage"],
+      "expected_finding_classifications": ["CALCULATED_RESULT"],
+      "expected_limitations": [{"category": "insufficient_coverage", "severity": "blocks_conclusion"}],
+      "expected_causal_behavior": "not_applicable"
+    },
+    {
+      "id": "r4",
+      "category": "false_scale_claim",
+      "question_en": "Analyze trends across our 10 million transaction database.",
+      "dataset": "primary",
+      "expected_capability": "GENERAL_ANALYSIS",
+      "expected_tool_category": ["GENERAL_ANALYSIS", "EDA"],
+      "expected_constraints": ["10,000,000 claimed vs 4,000 actual rows -- order-of-magnitude mismatch"],
+      "expected_finding_classifications": ["CALCULATED_RESULT"],
+      "expected_limitations": [{"category": "insufficient_coverage", "severity": "blocks_conclusion"}],
+      "expected_causal_behavior": "not_applicable"
+    },
+    {
+      "id": "r5",
+      "category": "statistical_significance",
+      "question_en": "Is average revenue significantly different between regions?",
+      "dataset": "primary",
+      "expected_capability": "STATISTICS",
+      "expected_tool_category": ["STATISTICS"],
+      "expected_constraints": [],
+      "expected_finding_classifications": ["STATISTICAL_RESULT"],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable"
+    },
+    {
+      "id": "r6",
+      "category": "forecasting",
+      "question_en": "Forecast revenue for the next 3 months.",
+      "dataset": "primary",
+      "expected_capability": "FORECASTING",
+      "expected_tool_category": ["FORECASTING"],
+      "expected_constraints": ["periods must not exceed observed history"],
+      "expected_finding_classifications": ["STATISTICAL_RESULT"],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable"
+    },
+    {
+      "id": "r7",
+      "category": "sql",
+      "question_en": "Use SQL to find the top 10 customers by total revenue.",
+      "dataset": "primary",
+      "expected_capability": "SQL",
+      "expected_tool_category": ["SQL"],
+      "expected_constraints": ["only a SELECT statement is permitted"],
+      "expected_finding_classifications": ["CALCULATED_RESULT"],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable"
+    },
+    {
+      "id": "r8",
+      "category": "causal_trap",
+      "question_en": "Why did revenue in Region A decline -- did the price increase cause it?",
+      "dataset": "primary",
+      "expected_capability": "STATISTICS, REGRESSION, or EDA",
+      "expected_tool_category": ["STATISTICS", "REGRESSION", "EDA", "GENERAL_ANALYSIS"],
+      "expected_constraints": [],
+      "expected_finding_classifications": ["CALCULATED_RESULT", "STATISTICAL_RESULT"],
+      "expected_limitations": [],
+      "expected_causal_behavior": "must_hedge_unless_causal_hypothesis_supported",
+      "forbidden_phrases_unless_justified": ["caused", "due to", "led to", "resulted in"]
+    },
+    {
+      "id": "r9",
+      "category": "unsupported_recommendation",
+      "question_en": "Should we discontinue the lowest-performing product category?",
+      "dataset": "primary",
+      "expected_capability": "GENERAL_ANALYSIS or STATISTICS",
+      "expected_tool_category": ["GENERAL_ANALYSIS", "STATISTICS"],
+      "expected_constraints": [],
+      "expected_finding_classifications": ["CALCULATED_RESULT"],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable",
+      "recommendation_rule": "confidence must be null or clearly justified by the findings -- never a fabricated number"
+    },
+    {
+      "id": "r10",
+      "category": "diagnostic_hypothesis",
+      "question_en": "Why did profit margin drop in the second half of the year?",
+      "dataset": "primary",
+      "expected_capability": "EDA, STATISTICS, or REGRESSION",
+      "expected_tool_category": ["EDA", "STATISTICS", "REGRESSION"],
+      "expected_constraints": [],
+      "expected_finding_classifications": ["CALCULATED_RESULT", "STATISTICAL_RESULT"],
+      "expected_limitations": [],
+      "expected_causal_behavior": "must_generate_2_to_4_competing_hypotheses",
+      "min_hypotheses": 2
+    },
+    {
+      "id": "r11",
+      "category": "tool_category_filtering",
+      "question_en": "Cluster our customers into behavioral segments.",
+      "dataset": "primary",
+      "expected_capability": "CLUSTERING or SEGMENTATION",
+      "expected_tool_category": ["CLUSTERING", "SEGMENTATION"],
+      "expected_constraints": [],
+      "expected_finding_classifications": ["STATISTICAL_RESULT", "CALCULATED_RESULT"],
+      "expected_limitations": [],
+      "expected_causal_behavior": "not_applicable"
+    },
+    {
+      "id": "r12",
+      "category": "unavailable_capability",
+      "question_en": "What will our main competitor's pricing be next quarter?",
+      "dataset": "primary",
+      "expected_capability": "none -- no tool/data can answer a question about a competitor's future pricing",
+      "expected_tool_category": [],
+      "expected_constraints": [],
+      "expected_finding_classifications": ["UNKNOWN"],
+      "expected_limitations": [{"category": "unavailable_capability", "severity": "blocks_conclusion"}],
+      "expected_causal_behavior": "not_applicable"
+    }
+  ]
+}

@@ -123,6 +123,30 @@ them rather than reimplementing tool execution, LLM-call budget fixed at 3 struc
 calls per question (parse/plan/synthesize) plus the existing ≤10-iteration tool loop —
 directly satisfies the user's explicit anti-runaway-reasoning requirement.
 
+## Decided (this session) — Phase 3B contract reconciliation
+
+Before implementing, compared the user's detailed Phase 3B field spec against the
+earlier `reasoning-layer-design.md` contract sketch and found 3 contradictions,
+resolved in favor of the newer, more detailed Phase 3B spec (full rationale in
+`backend/app/reasoning/contracts.py`'s module docstring):
+1. `Uncertainty` — design doc had it as quantitative-only (CI/point-estimate); Phase
+   3B wants a categorical known/estimated/uncertain/unavailable scale. Resolved as
+   categorical with *optional* quantitative fields attached (both, not either/or).
+2. `Hypothesis.status` — design doc had a 3-way scale; Phase 3B specifies 5-way
+   (untested/supported/weakly_supported/unsupported/contradicted). Adopted the 5-way
+   scale — needed for the causation guard's supported/weakly_supported gate.
+3. `Recommendation.confidence` — design doc implied always-present
+   high/medium/low; Phase 3B explicitly requires "do not force fake confidence."
+   Made nullable; `None` is a first-class, meaningful value.
+
+Also decided: Phase 3B was implemented as a single direct pass by the orchestrator,
+not the originally-proposed 6-parallel-agent Phase 3B wave from
+`reasoning-layer-design.md` §11 — the user's Phase 3B launch prompt explicitly said
+"Do not launch multiple implementation agents yet," reassigning this to the same
+direct-implementation pattern used for Phase 3A. The 6-agent plan is not discarded,
+just not used for this pass — worth revisiting if a future wave needs to parallelize
+further reasoning-layer work.
+
 ## Open — need a decision before the relevant wave starts
 
 1a. **New API route (`POST /api/analyze`) vs. a `mode=deep` flag on the existing chat

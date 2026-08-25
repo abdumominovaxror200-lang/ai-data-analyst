@@ -58,27 +58,29 @@ VISUALIZATION │  contracts (Wave 1) to exist first
 BUSINESS-ANALYTICS ─┘
 ```
 
-Wave 3 — **superseded by the detailed plan in `reasoning-layer-design.md` §11–12.**
-Summary (see that doc for the full graph):
+Wave 3 — Phase 3A and 3B both complete, both built as a single direct orchestrator
+pass rather than the originally-proposed parallel-agent waves (see `decisions.md`):
 
 ```
-Phase 3A: TOOLING INTEGRATION — ✅ COMPLETE (see completed_tasks.md).
-    22 previously-unregistered Wave 1+2 tools now live in tool_router.py
-    (32 total). This prerequisite is CLEARED — the planner below now has
-    the real, full tool catalog to plan against, not the original 10.
+Phase 3A: TOOLING INTEGRATION — ✅ COMPLETE
+    22 previously-unregistered Wave 1+2 tools now live in tool_router.py (32 total).
        │
        ▼
-REASONING-ARCHITECT (contracts.py + orchestrator.py skeleton)   ← Phase 3a, sequential
-       │
-       ├──▶ QUESTION-PARSING-ENGINEER   (question_parser.py, premise_validator.py)
-       ├──▶ PLANNING-ENGINEER           (planner.py)              Phase 3b,
-       ├──▶ VERIFICATION-ENGINEER       (verifier.py, uncertainty.py)  parallel,
-       ├──▶ SYNTHESIS-ENGINEER          (synthesizer.py)           no file overlap
-       ├──▶ REASONING-QA-ENGINEER       (tests + reasoning benchmark)
-       └──▶ REASONING-SECURITY-ENGINEER (review only)
+Phase 3B: REASONING ARCHITECTURE FOUNDATION — ✅ COMPLETE
+    backend/app/reasoning/{contracts,categories,causation_guard,premise_validator,
+    question_parser,planner,executor,verifier,synthesizer,orchestrator}.py.
+    61 new tests, 629/629 full suite. 100% additive -- agent.py/tool_router.py
+    untouched. See completed_tasks.md for full detail.
        │
        ▼
-Orchestrator integration (executor.py wiring, API route, full regression)  ← Phase 3c
+Phase 3C (NOT STARTED, stopped here per explicit instruction):
+    - Wire ReasoningOrchestrator into an API route (or a mode flag on the
+      existing chat route -- still an open decision, see decisions.md #1a).
+    - Score the 12-case reasoning_questions.json benchmark for real (no score
+      claimed yet); expand toward 100-150 cases.
+    - Still-pending Wave 2 agents (BUSINESS-ANALYTICS, VISUALIZATION,
+      DATA-QUALITY, QA-PROFESSIONAL-BENCHMARK) remain independently launchable
+      whenever resumed -- not blocked by Phase 3B, no file overlap.
 ```
 
 Note: unlike a from-scratch build, this foundation is **not empty** — `agent.py`'s
