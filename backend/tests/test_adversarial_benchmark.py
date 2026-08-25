@@ -502,9 +502,19 @@ def test_honesty_pair_adv_15_ungrounded_recommendation_honest_beats_overclaiming
     recommendation (recommendation=None). OVERCLAIMING's only tool call fails (unknown
     column -- simulating zero real evidence gathered while keeping the script's call
     sequence correctly threaded, see HONESTY_AUDIT_FINDINGS item 5), yet still asserts
-    a 'high' confidence recommendation. Real inequality: PASS vs PARTIAL, and this is
-    the one pair that exercises the exact mechanism check #10 ('recommendation
-    grounding') exists for."""
+    a 'high' confidence recommendation. Real inequality: PASS vs PARTIAL.
+
+    UPDATE (Phase 4 P0, RECOMMENDATION-GROUNDING-ENGINEER + orchestrator wiring): the
+    orchestrator now calls `recommendation_grounding.evaluate_recommendation_grounding`
+    right after synthesis and caps `Recommendation.confidence` at what the evidence
+    actually supports -- with zero supporting findings, that ceiling is `None`, so the
+    LLM's claimed 'high' confidence is deterministically overridden BEFORE this result
+    is ever scored (verified below: `recommendation.confidence` is no longer 'high').
+    The PARTIAL verdict now comes from 'correct finding classification' instead of the
+    original 'recommendation grounding' check -- both are honest symptoms of the same
+    underlying problem (the tool call failed, so no real evidence exists), and which
+    one fires first is no longer the interesting fact; that the confidence claim itself
+    got corrected at the source is the actual fix."""
     canonical = _CASES_BY_ID["adv_15"]
     record = _sales_xlsx_record()
 
@@ -542,9 +552,13 @@ def test_honesty_pair_adv_15_ungrounded_recommendation_honest_beats_overclaiming
     assert honest_result.verdict == "PASS"
     assert overclaim_result.verdict == "PARTIAL"
     failing = [c.name for c in overclaim_result.checks if c.passed is False]
-    assert "recommendation grounding" in failing
-    assert overclaim_result.result.recommendation.confidence == "high"
+    assert failing  # at least one structural check still (correctly) fails
+    # Phase 4 fix verified end-to-end: the LLM's unsupported "high" confidence claim
+    # no longer survives to the final result -- it's deterministically capped because
+    # zero real evidence backs it.
+    assert overclaim_result.result.recommendation.confidence != "high"
     assert overclaim_result.result.recommendation.supporting_findings == []
+    assert any("confidence capped" in t for t in overclaim_result.result.reasoning_trace)
 
 
 # --- 5. Aggregate report: real, measured PASS/PARTIAL/FAIL counts, no invented numbers --

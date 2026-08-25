@@ -1,4 +1,4 @@
-"""Reasoning pipeline orchestrator (Phase 3B.2/3B.7).
+"""Reasoning pipeline orchestrator (Phase 3B.2/3B.7, extended Phase 4).
 
 Composes the bounded, 3-structured-LLM-call pipeline:
 
@@ -9,12 +9,18 @@ Composes the bounded, 3-structured-LLM-call pipeline:
         -> [early stop: no applicable capability category]
     execute plan via the EXISTING agent/tool_router loop (no new tool engine)
         -> build findings + cross-check (deterministic)
+        -> derive hypothesis status from evidence (Phase 4 P1, deterministic)
     synthesize final answer (LLM call 3, includes the causation guard)
+        -> strengthen/cap recommendation confidence by evidence strength (Phase 4 P0,
+           deterministic)
+        -> run machine-checkable epistemic-principle checks (Phase 4 P2, deterministic)
 
 No stage here duplicates tool-execution logic (`executor.py` drives the existing
 `DataAnalystAgent`), and no stage adds a second unbounded loop -- the two early-stop
 branches use only 2 of the 3 reasoning calls (parse + synthesize), never more than the
-documented 3 regardless of path taken.
+documented 3 regardless of path taken. Every Phase 4 addition below is deterministic
+(no new LLM call, no new tool call) -- it post-processes objects the existing 3 calls
+already produced.
 """
 
 from __future__ import annotations
@@ -24,9 +30,10 @@ import logging
 from app.agent.providers import LLMProvider
 from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
-from app.reasoning import executor, planner, question_parser, verifier
+from app.reasoning import epistemic_checks, executor, hypothesis_evaluator, planner, question_parser, verifier
 from app.reasoning.contracts import AnalysisResult, Finding, Limitation
 from app.reasoning.premise_validator import validate_question
+from app.reasoning.recommendation_grounding import evaluate_recommendation_grounding
 from app.reasoning.synthesizer import synthesize
 from app.tools.profiler import profile_dataset
 
@@ -84,13 +91,40 @@ class ReasoningOrchestrator:
             f"findings: {len(findings)}, cross-checked: {sum(1 for f in findings if f.cross_checked)}"
         )
 
+        # --- deterministic (Phase 4 P1): derive hypothesis status from gathered
+        # evidence -- never from the LLM declaring itself "supported". This is what
+        # makes the causation guard's "a supported causal hypothesis may use unhedged
+        # language" branch reachable in production for the first time.
+        hypotheses = hypothesis_evaluator.update_hypothesis_status(plan.hypotheses, evidence, findings)
+        if hypotheses:
+            trace.append(f"hypotheses: {[(h.id, h.status) for h in hypotheses]}")
+
         # --- LLM call 3: synthesize final answer (includes the causation guard) ---
         final_text, recommendation, was_hedged, matched_phrases = synthesize(
-            self._provider, question, claims, plan, evidence, findings, plan.hypotheses, limitations
+            self._provider, question, claims, plan, evidence, findings, hypotheses, limitations
         )
         if was_hedged:
             trace.append(f"causation guard: hedged unsupported causal language {matched_phrases}")
+
+        # --- deterministic (Phase 4 P0): cap recommendation confidence at what the
+        # evidence actually supports -- never trust the LLM's own stated confidence.
+        if recommendation is not None:
+            grounding = evaluate_recommendation_grounding(recommendation, findings, evidence, hypotheses)
+            if grounding.violations:
+                trace.append(f"recommendation grounding violations: {grounding.violations}")
+            if grounding.adjusted_confidence != recommendation.confidence:
+                trace.append(
+                    f"recommendation confidence capped: {recommendation.confidence!r} -> "
+                    f"{grounding.adjusted_confidence!r} (evidence strength: {grounding.evidence_strength})"
+                )
+                recommendation = recommendation.model_copy(update={"confidence": grounding.adjusted_confidence})
+
         trace.append("stopping: synthesis complete, sufficient evidence gathered or exhausted")
+
+        # --- deterministic (Phase 4 P2): machine-checkable epistemic-principle audit ---
+        violations = epistemic_checks.check_all(
+            question, claims, findings, evidence, hypotheses, limitations, recommendation, final_text
+        )
 
         return AnalysisResult(
             question=question,
@@ -98,11 +132,12 @@ class ReasoningOrchestrator:
             plan=plan,
             evidence=evidence,
             findings=findings,
-            hypotheses=plan.hypotheses,
+            hypotheses=hypotheses,
             limitations=limitations,
             recommendation=recommendation,
             final_answer_text=final_text,
             reasoning_trace=trace,
+            principle_violations=violations,
         )
 
     # --- early-stop branches (Phase 3B.7) -----------------------------------------
@@ -117,6 +152,7 @@ class ReasoningOrchestrator:
         final_text, _rec, _hedged, _matched = synthesize(
             self._provider, question, claims, None, [], [finding], [], limitations
         )
+        violations = epistemic_checks.check_all(question, claims, [finding], [], [], limitations, None, final_text)
         return AnalysisResult(
             question=question,
             claims=claims,
@@ -128,6 +164,7 @@ class ReasoningOrchestrator:
             recommendation=None,
             final_answer_text=final_text,
             reasoning_trace=trace,
+            principle_violations=violations,
         )
 
     def _stop_unavailable_capability(self, question, claims, plan, limitations, trace) -> AnalysisResult:
@@ -145,6 +182,9 @@ class ReasoningOrchestrator:
         final_text, _rec, _hedged, _matched = synthesize(
             self._provider, question, claims, plan, [], [finding], [], all_limitations
         )
+        violations = epistemic_checks.check_all(
+            question, claims, [finding], [], list(plan.hypotheses), all_limitations, None, final_text
+        )
         return AnalysisResult(
             question=question,
             claims=claims,
@@ -156,6 +196,7 @@ class ReasoningOrchestrator:
             recommendation=None,
             final_answer_text=final_text,
             reasoning_trace=trace,
+            principle_violations=violations,
         )
 
 
