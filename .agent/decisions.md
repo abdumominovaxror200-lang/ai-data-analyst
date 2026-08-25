@@ -165,21 +165,26 @@ gaps. **Both closed in Phase 4, verified end-to-end, not just unit-tested:**
 
 ## Decided (this session) — Phase 4 findings for a future decision
 
-1. **Real-LLM testing surfaced two new, more concerning findings than anything the
-   scripted benchmarks found** (scripted benchmarks structurally cannot surface
-   these, since the script always specifies which tool gets called):
-   - For the simplest possible question ("how many rows are in this dataset"), the
-     real model (`openai/gpt-oss-120b` via Groq) did not call `profile_dataset` at
-     all and confabulated a wrong reason (claimed a nonexistent "row_count" column
-     was needed) instead of just invoking the one obvious tool.
-   - Asked to use an outlier-distorted average as an operational threshold, the
-     real model returned the raw skewed figure ($3,957.59, distorted by one
-     $80,000 outlier among 25 orders) with no hedge or outlier mention.
-   Neither is fixed this phase — both are reported honestly in the Phase 4 chat
-   report as open reliability gaps, not swept under the rug. Worth a dedicated
-   future pass on planner robustness (the first finding) and a mandatory
-   outlier-check step before any tool result feeds a numeric claim used for a
-   business decision (the second).
+1. **Real-LLM testing surfaced two findings the scripted benchmarks structurally
+   could not** (a script always specifies which tool gets called; only a real model
+   can fail to call the right one). **Both fixed and re-verified live in this same
+   session's follow-up work:**
+   - ~~For the simplest possible question ("how many rows are in this dataset"),
+     the real model did not call `profile_dataset` and confabulated a wrong
+     reason~~ — **FIXED**: `question_parser.py`'s prompt now explicitly
+     distinguishes dataset-shape questions from named-metric questions. Re-verified
+     live: correct tool selected, correct answer ("4,000 rows").
+   - ~~An outlier-distorted average was returned unhedged with no outlier
+     mention~~ — **PARTIALLY FIXED**: `verifier.py` now deterministically attaches
+     an outlier-risk Limitation from `describe_data`'s own stats, independent of
+     whether the model calls `detect_anomalies`. Re-verified live against the exact
+     original scenario: the Limitation reliably attaches at the structured/API
+     level now. **Still open**: the synthesized prose answer text does not always
+     incorporate it — that still depends on the synthesizer's LLM call choosing to
+     follow its own system-prompt instruction. A caller reading `result.limitations`
+     (e.g. `/api/reason`'s response) is protected; a caller reading only `answer`
+     may still occasionally miss it. Worth a future pass if that residual gap
+     matters for a given integration.
 2. A shared Groq API key across concurrent live-LLM agents exhausted its **daily**
    token quota (200,000 TPD) — a session-external constraint, not something a
    retry/backoff can wait out. Future live-LLM waves should use a dedicated key per
