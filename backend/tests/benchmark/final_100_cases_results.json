@@ -1,0 +1,545 @@
+{
+  "total_tasks": 102,
+  "passed": 101,
+  "partial": 1,
+  "failed": 0,
+  "overall_score_pct": 99.0,
+  "category_scores_pct": {
+    "data_profiling": 100.0,
+    "data_cleaning_quality": 100.0,
+    "eda_distributions": 100.0,
+    "outlier_anomaly": 100.0,
+    "sql_analysis": 100.0,
+    "aggregation_grouping": 100.0,
+    "statistical_testing": 100.0,
+    "correlation": 100.0,
+    "regression_diagnostics": 100.0,
+    "forecasting_timeseries": 100.0,
+    "clustering_pca": 100.0,
+    "segmentation_rfm_cohort": 100.0,
+    "business_kpi_contribution_pareto": 100.0,
+    "executive_summary_recommendations": 100.0,
+    "visualization_chart_selection": 100.0,
+    "causal_reasoning": 100.0,
+    "bias_traps": 100.0,
+    "ambiguous_questions": 100.0,
+    "insufficient_data": 75.0,
+    "contradictory_data": 100.0,
+    "adversarial_prompt_injection": 100.0,
+    "large_data_scale_awareness": 100.0,
+    "numerical_sanity_checks": 100.0,
+    "recommendation_grounding": 100.0
+  },
+  "cases": [
+    {
+      "case_id": "dp1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "dp2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "dp3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "dp4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "dc1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "dc2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "dc3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "dc4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "dc5",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "eda1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "eda2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "eda3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "eda4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "out1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "out2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "out3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "out4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "sql1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "sql2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "sql3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "sql4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "sql5",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "agg1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "agg2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "agg3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "agg4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "stat1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "stat2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "stat3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "stat4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "stat5",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "corr1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "corr2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "corr3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "reg1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "reg2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "reg3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "reg4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "fc1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "fc2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "fc3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "fc4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "fc5",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "cls1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "cls2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "cls3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "seg1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "seg2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "seg3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "seg4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "biz1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "biz2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "biz3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "biz4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "biz5",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "exec1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "exec2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "exec3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "exec4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "viz1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "viz2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "viz3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "viz4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "cause1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "cause2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "cause3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "cause4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "cause5",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "bias1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "bias2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "bias3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "bias4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "bias5",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "amb1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "amb2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "amb3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "amb4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "insuf1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "insuf2",
+      "verdict": "PARTIAL",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "insuf3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "insuf4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "contra1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "contra2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "contra3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "contra4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "adv1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "adv2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "adv3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "adv4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "large1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "large2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "large3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "large4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "num1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "num2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "num3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "num4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "rec1",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "rec2",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "rec3",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "rec4",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "rec5",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    }
+  ]
+}
