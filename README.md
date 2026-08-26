@@ -4,6 +4,14 @@ An AI agent that analyzes CSV/Excel datasets like a business analyst would: it p
 data, answers natural-language questions, finds anomalies, charts trends, and writes up
 findings — with every number backed by a real Python calculation, never guessed by the LLM.
 
+39 deterministic analysis tools (profiling, SQL, EDA, statistics, regression, forecasting,
+clustering, customer segmentation, data quality, general-purpose aggregation/reporting) sit
+behind two API surfaces: a fast direct tool-calling agent (`/api/chat`), and a bounded,
+evidence-classified reasoning layer (`/api/reason`) that separates parsing, planning,
+execution, verification, hypothesis evaluation, causal-language guarding, recommendation
+grounding, and epistemic self-checking into distinct, individually testable stages. See
+[Two ways to ask a question](#two-ways-to-ask-a-question) below.
+
 ## This is an agent, not a chatbot
 
 The distinction matters and it's the whole point of this project. A chatbot given a dataset
@@ -67,15 +75,21 @@ User → React/TS dashboard → FastAPI → AI Analyst Agent → Tool Router →
 ```
 
 - **Frontend**: React + TypeScript (Vite), Tailwind CSS, Recharts. A single-page dashboard —
-  Upload, Overview, AI Analyst chat, Charts, Insights, Anomalies, Report.
+  Upload, Overview, AI Analyst chat, Deep Reasoning, Charts, Insights, Anomalies, Report.
 - **Backend**: FastAPI. Thin route handlers over a service layer; Pydantic schemas for every
   request/response.
-- **Data**: pandas + NumPy, openpyxl for `.xlsx`. No database — datasets live in memory for the
-  process lifetime, addressed by a generated UUID (see [`docs/architecture.md`](docs/architecture.md)
-  for the reasoning).
+- **Data**: pandas + NumPy, openpyxl for `.xlsx`, DuckDB for read-only ad hoc SQL. No database —
+  datasets live in memory for the process lifetime, addressed by a generated UUID (see
+  [`docs/architecture.md`](docs/architecture.md) for the reasoning). A separate, tested
+  `app/large_data/` package (chunked reading, reservoir/Bernoulli sampling, chunked aggregation,
+  memory guarding — see [Large-data engine](#large-data-engine-not-yet-wired-into-upload) below)
+  exists for datasets far larger than fit in memory, but is **not yet connected to the upload
+  path** — documented honestly, not silently implied.
 - **AI**: an OpenAI-compatible tool-calling agent. The provider is swappable — OpenAI,
   OpenRouter, Groq, DeepSeek, or any other OpenAI-compatible `/chat/completions` API — via three
   environment variables, no code change.
+- **Deployment**: Dockerfiles for backend/frontend, `docker-compose.yml`, and a GitHub Actions CI
+  workflow (backend pytest + frontend typecheck/build/lint) — see [`docs/deployment.md`](docs/deployment.md).
 
 See [`docs/architecture.md`](docs/architecture.md) for the full system design.
 
@@ -85,9 +99,24 @@ See [`docs/architecture.md`](docs/architecture.md) for the full system design.
 user's question plus dataset *metadata only* (shape, column names/types — never raw rows) to the
 LLM along with a JSON-schema list of available tools. If the LLM requests a tool call, the
 `ToolRouter` executes the corresponding deterministic Python function against the real dataset
-and the result is fed back into the conversation. This repeats (bounded at 6 iterations) until
+and the result is fed back into the conversation. This repeats (bounded iterations) until
 the LLM produces a final answer. See [`docs/agent-tools.md`](docs/agent-tools.md) for the full
 tool catalogue.
+
+## Two ways to ask a question
+
+| | `/api/chat` | `/api/reason` |
+|---|---|---|
+| What it is | The original direct tool-calling loop (above) | A bounded, multi-stage reasoning pipeline built on top of the same tools |
+| LLM calls | As many as the tool loop needs | Exactly 3 structured calls (parse / plan / synthesize) plus the tool-execution loop |
+| Output | An answer + the tool calls that produced it | Answer **plus** structured `Evidence`, classified `Finding`s (FACT/CALCULATED_RESULT/STATISTICAL_RESULT/HYPOTHESIS/ASSUMPTION/UNKNOWN), `Limitation`s, `Hypothesis` objects with evidence-derived status, a grounded `Recommendation` (confidence capped by evidence strength), and a list of any `principle_violations` a set of 10 machine-checkable epistemic-honesty checks flagged |
+| Guardrails | Tool-level only (SQL read-only, resource limits) | All of the above, plus: category-filtered tool access (a hallucinated or overly-eager LLM category choice can never reach an out-of-category tool), a 3-layer causal-language guard (unhedged causal claims like "X caused Y" are rejected unless a specific hypothesis reached `status: "supported"` from real statistical evidence), and recommendation-confidence capping tied to evidence strength |
+| Where in the UI | **AI Analyst** tab | **Deep Reasoning** tab |
+| When to use | Fast, general-purpose questions | Business-critical questions where you want to see *why* the system believes something, not just the answer |
+
+Both paths call the same 39 real tools and never let the LLM compute a number itself — `/api/reason`
+adds an evidence/finding/hypothesis bookkeeping layer and several honesty guardrails on top, at
+the cost of being slower (3 fixed LLM calls vs. as many as the loop needs).
 
 ## How numerical accuracy is maintained
 
@@ -184,9 +213,16 @@ cd backend
 venv\Scripts\python -m pytest
 ```
 
-70 tests cover upload validation, every analysis tool, API error handling, malicious-file
-handling, the agent's tool-calling / no-hallucination guarantees, and JSON-serialization edge
-cases (e.g. datetime columns flowing through tool results).
+913 tests cover upload validation, every one of the 39 analysis tools, API error handling,
+malicious-file handling, the agent's tool-calling / no-hallucination guarantees,
+JSON-serialization edge cases, the full reasoning pipeline (premise validation, causal-language
+guarding, recommendation grounding, epistemic checks), and two scripted end-to-end benchmarks
+(`professional_benchmark.json`, `final_100_cases.json` — 100 and 102 cases respectively across
+the full analyst-capability taxonomy; see [`.agent/final_100_case_benchmark.md`](.agent/final_100_case_benchmark.md)
+for the latest measured results and honesty caveats). A further 74 tests (real-LLM-provider
+benchmark cases and the 100M-row large-data benchmark) are gated behind opt-in environment
+variables (`RUN_REAL_LLM_BENCHMARK=1`, `RUN_100M_BENCHMARK=1`) since they need a live API key
+or several minutes and multiple GB of disk/RAM — skipped by default, not silently absent.
 
 ## Example questions
 
@@ -207,10 +243,30 @@ cases (e.g. datetime columns flowing through tool results).
 4. **AI Analyst** tab: ask "Analyze this dataset and summarize the key findings." (requires
    `LLM_API_KEY` in `backend/.env` — without it the tab shows a clear "AI provider not
    configured" message rather than failing silently).
-5. **Charts** tab: build a bar chart of `product` vs `revenue` (sum).
-6. **Anomalies** tab: run IQR detection on `profit` — it finds the seeded negative-profit
+5. **Deep Reasoning** tab: ask "Did our new pricing strategy cause this quarter's revenue
+   increase?" — watch the answer come with explicit Findings, Limitations, and Hypotheses
+   sections, and notice unhedged causal language gets rejected unless the evidence actually
+   supports it.
+6. **Charts** tab: build a bar chart of `product` vs `revenue` (sum).
+7. **Anomalies** tab: run IQR detection on `profit` — it finds the seeded negative-profit
    data-entry error.
-7. **Report** tab: generate and download the Markdown report.
+8. **Report** tab: generate and download the Markdown report.
+
+## Large-data engine (not yet wired into upload)
+
+`backend/app/large_data/` is a separate, independently tested package for datasets far larger
+than comfortably fit in memory: chunked CSV reading, exact reservoir/Bernoulli sampling from a
+file stream, chunked group-aggregation, and a memory guard that raises before the process is at
+real risk of OOM. It has been benchmarked for real at 100K/1M/10M/100M synthetic rows (see
+`backend/app/large_data/benchmark_100m_results.json`) — real measured numbers, not projections,
+for every stage except the full naive-load-to-100M-rows ceiling (extrapolated from a 2M-row
+measurement, since actually loading 100M rows naively would OOM the benchmark machine by design).
+
+**This package is not yet connected to the dataset-upload path** — today's upload endpoint
+(`app/datasets/storage.py`) still does one full `pd.read_csv`/`pd.read_excel`, capped at
+`MAX_UPLOAD_MB`/`max_rows` (25 MB / 500,000 rows by default). Wiring `large_data` into the real
+upload flow is the single largest documented gap in this project — see
+[`.agent/production-readiness.md`](.agent/production-readiness.md) for the proposed design.
 
 ## Security considerations
 
@@ -221,6 +277,13 @@ cases (e.g. datetime columns flowing through tool results).
   (see `backend/tests/test_malicious_files.py`).
 - Files are parsed with pandas/openpyxl only — no `pickle`, no macro execution, no code from
   the uploaded file is ever run.
+- Ad hoc SQL (`run_sql_query`/`explain_sql_query` tools) runs against a read-only DuckDB/SQLite
+  view — a single `SELECT` statement only; write/DDL statements and stacked statements are
+  rejected before execution, verified by dedicated tests and by adversarial benchmark cases that
+  literally attempt `DELETE`/`DROP TABLE` and confirm they're refused, not silently no-opped.
+- Data from the uploaded file (cell values, column names) is treated as untrusted input
+  throughout the LLM-facing prompt construction — a prompt-injection payload embedded in a cell
+  is inert data to the synthesizer, never an instruction, verified by dedicated adversarial cases.
 - Datasets are process-lifetime, in-memory, and never written anywhere outside
   `STORAGE_DIR/uploads/<uuid>.<ext>`.
 - `.env` files are gitignored; nothing in `app/` logs API keys, secrets, or full dataset
@@ -233,22 +296,30 @@ cases (e.g. datetime columns flowing through tool results).
   the server or reloading the frontend loses the current dataset (by design for an MVP; see
   [`docs/architecture.md`](docs/architecture.md#why-no-database-for-v1)).
 - **Single dataset per session.** No joins across multiple uploaded files yet.
-- **Free-tier LLM rate limits.** Groq's free tier caps at 8,000 tokens/minute per account. A
-  complex multi-part question can need 3-5 sequential tool-calling round-trips, which can brush
-  against that ceiling. The agent retries with backoff and `LLM_REASONING_EFFORT=low` trims
-  token usage substantially, but a paid tier (or a less token-hungry model) removes the
+- **Upload path caps out well below the large-data engine's tested scale.** See
+  [Large-data engine](#large-data-engine-not-yet-wired-into-upload) above.
+- **Free-tier LLM rate limits.** Groq's free tier caps at 8,000 tokens/minute and a daily token
+  quota per account. A complex multi-part question, or `/api/reason`'s 3 fixed structured calls,
+  can brush against those ceilings. The agent retries with backoff and `LLM_REASONING_EFFORT=low`
+  trims token usage substantially, but a paid tier (or a less token-hungry model) removes the
   constraint entirely.
 - **No streaming.** Chat responses arrive as one complete response, not token-by-token.
 - **No auth.** Anyone with network access to the backend can upload/query — fine for a local
   demo, not for a multi-tenant deployment as-is.
+- **Some structural gaps remain in the reasoning layer**, honestly documented rather than
+  silently absent — see [`.agent/PROFESSIONAL_ANALYST_CAPABILITY_AUDIT.md`](.agent/PROFESSIONAL_ANALYST_CAPABILITY_AUDIT.md)
+  for the full 20-area capability audit, including a fixed root-cause-analysis sequence for
+  diagnostic questions, a general-purpose numerical sanity checker, and deterministic (not
+  purely LLM-discretion) chart-type selection — all still open, prioritized items.
 
 ## Future roadmap
 
+- Wire `app/large_data/` into the real upload path (the largest single documented gap).
 - Persist datasets (PostgreSQL + object storage) for multi-session / multi-user use beyond a
   single process lifetime.
 - Streaming chat responses (SSE) instead of a single request/response per message.
 - Authentication and per-user dataset isolation.
 - Support for joining multiple uploaded datasets.
 - Column-level PII detection/redaction before any data reaches the LLM's context.
-- CI pipeline running the backend test suite + frontend build on every push.
-- Dockerfile / docker-compose for one-command deployment.
+- A fixed, deterministic root-cause-analysis sequence for diagnostic questions (profile → decompose → compare periods → check segments → check outliers → test hypotheses), rather than leaving that sequencing entirely to the planner LLM.
+- A general-purpose numerical sanity checker (magnitude/sign/units/denominator/order-of-magnitude) applied to every numeric finding, not only the specific checks that exist today.
