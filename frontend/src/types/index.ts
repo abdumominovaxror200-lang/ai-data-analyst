@@ -87,3 +87,87 @@ export interface ReportResponse {
   generated_at: string;
   report: ReportPayload;
 }
+
+// --- Reasoning layer (`/api/reason`) types.
+// Mirrors backend/app/schemas.py's Reason*/EvidenceOut/etc. Pydantic models
+// exactly (field names, optionality, literal unions) so the API contract stays
+// traceable end to end. Additive only — see frontend/src/api/client.ts. ---
+
+export type EvidenceType = "FACT" | "CALCULATED_RESULT" | "STATISTICAL_RESULT";
+
+export type FindingClassification =
+  | "FACT"
+  | "CALCULATED_RESULT"
+  | "STATISTICAL_RESULT"
+  | "HYPOTHESIS"
+  | "ASSUMPTION"
+  | "UNKNOWN";
+
+export type UncertaintyLevel = "known" | "estimated" | "uncertain" | "unavailable";
+
+export type RecommendationConfidence = "high" | "medium" | "low";
+
+export interface UncertaintyOut {
+  level: UncertaintyLevel;
+  point_estimate?: number | null;
+  interval_low?: number | null;
+  interval_high?: number | null;
+  confidence_level?: number | null;
+  method?: string | null;
+}
+
+export interface EvidenceOut {
+  id: string;
+  source_tool: string;
+  evidence_type: EvidenceType;
+  metric?: string | null;
+  result_summary: Record<string, any>;
+  sample_size?: number | null;
+}
+
+export interface FindingOut {
+  id: string;
+  statement: string;
+  classification: FindingClassification;
+  cross_checked: boolean;
+  uncertainty?: UncertaintyOut | null;
+  supporting_evidence: string[]; // EvidenceOut.id values
+}
+
+export interface LimitationOut {
+  category: string;
+  text: string;
+  severity: string;
+  affected_findings: string[]; // FindingOut.id values
+}
+
+export interface HypothesisOut {
+  id: string;
+  description: string;
+  is_causal: boolean;
+  status: string;
+  evidence_for: string[]; // EvidenceOut.id values
+  evidence_against: string[];
+}
+
+export interface RecommendationOut {
+  recommendation: string;
+  expected_business_effect?: string | null;
+  confidence?: RecommendationConfidence | null;
+  assumptions: string[];
+  risks: string[];
+  supporting_findings: string[]; // FindingOut.id values
+}
+
+export interface ReasonResponse {
+  answer: string;
+  intent: string;
+  evidence: EvidenceOut[];
+  findings: FindingOut[];
+  limitations: LimitationOut[];
+  hypotheses: HypothesisOut[];
+  recommendation?: RecommendationOut | null;
+  tools_used: string[];
+  reasoning_trace: string[];
+  principle_violations: string[];
+}

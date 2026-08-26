@@ -2,11 +2,12 @@ import type { PropsWithChildren, ReactNode } from "react";
 import type { DatasetProfile } from "../types";
 import { Badge } from "./primitives";
 
-export type TabKey = "overview" | "chat" | "charts" | "insights" | "anomalies" | "report";
+export type TabKey = "overview" | "chat" | "reasoning" | "charts" | "insights" | "anomalies" | "report";
 
 const TABS: { key: TabKey; label: string; icon: ReactNode }[] = [
   { key: "overview", label: "Overview", icon: <IconGrid /> },
   { key: "chat", label: "AI Analyst", icon: <IconChat /> },
+  { key: "reasoning", label: "Deep Reasoning", icon: <IconBrain /> },
   { key: "charts", label: "Charts", icon: <IconChart /> },
   { key: "insights", label: "Insights", icon: <IconSpark /> },
   { key: "anomalies", label: "Anomalies", icon: <IconAlert /> },
@@ -131,6 +132,14 @@ function IconDoc() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" strokeLinejoin="round" />
       <path d="M14 3v6h6M8 13h8M8 17h8M8 9h2" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconBrain() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M9.5 3a3 3 0 0 0-3 3v.3A3.5 3.5 0 0 0 4 9.5a3.5 3.5 0 0 0 1.3 6A3 3 0 0 0 8 20a3 3 0 0 0 3-3V6a3 3 0 0 0-1.5-2.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14.5 3a3 3 0 0 1 3 3v.3A3.5 3.5 0 0 1 20 9.5a3.5 3.5 0 0 1-1.3 6A3 3 0 0 1 16 20a3 3 0 0 1-3-3V6a3 3 0 0 1 1.5-2.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

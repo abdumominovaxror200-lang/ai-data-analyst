@@ -26,6 +26,11 @@ export default {
         good: "#3fbf8f",
         warn: "#e0a63c",
         bad: "#e0616f",
+        // Reuse ChartRenderer's existing palette hues for the reasoning layer's
+        // STATISTICAL_RESULT / HYPOTHESIS finding badges, so new UI stays within
+        // colors already established elsewhere in the app.
+        stat: "#4fc3d9",
+        hypo: "#9d7ff0",
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
