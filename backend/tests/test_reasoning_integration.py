@@ -105,6 +105,45 @@ def test_reason_endpoint_full_round_trip(client, sample_df, monkeypatch):
     assert body["reasoning_trace"]
 
 
+def test_reason_endpoint_exposes_real_computed_evidence_not_just_prose(client, sample_df, monkeypatch):
+    """Master Mission P1 regression test: before this fix, ReasonResponse carried no
+    field with the actual computed value behind a finding -- FindingOut.statement was
+    a generic auto-generated sentence and Evidence.result_summary had no API field at
+    all. This proves a caller can now retrieve the real number, traced from
+    finding -> evidence -> result_summary, not just the free-text answer string."""
+    script = _script(
+        capability_categories=["GENERAL_ANALYSIS"],
+        tool="describe_data",
+        tool_args={"columns": ["revenue"]},
+        final_answer="Average revenue is summarized above.",
+    )
+    _patch_provider(monkeypatch, script)
+
+    files = {"file": ("sales.csv", make_csv_bytes(sample_df), "text/csv")}
+    dataset_id = client.post("/api/datasets/upload", files=files).json()["dataset_id"]
+    response = client.post("/api/reason", json={"dataset_id": dataset_id, "message": "What is the average revenue?"})
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert len(body["evidence"]) == 1
+    evidence = body["evidence"][0]
+    assert evidence["source_tool"] == "describe_data"
+    # the real computed mean must be present in result_summary -- not just implied by prose
+    real_mean = evidence["result_summary"]["columns"]["revenue"]["mean"]
+    assert isinstance(real_mean, (int, float))
+
+    # finding -> evidence traceability is a real id link, not just parallel arrays
+    finding = body["findings"][0]
+    assert finding["id"]
+    assert evidence["id"] in finding["supporting_evidence"]
+
+    # principle_violations is present in the response shape (Phase 4 P2 output,
+    # previously computed but never surfaced through this API at all)
+    assert "principle_violations" in body
+    assert isinstance(body["principle_violations"], list)
+
+
 def test_reason_endpoint_missing_column_stops_early_and_still_returns_200(client, sample_df, monkeypatch):
     parse = ProviderResponse(
         content=json.dumps(

@@ -8,12 +8,14 @@ from app.agent.providers import LLMProviderError, build_provider_from_settings
 from app.datasets.storage import DatasetNotFoundError, get_dataset_store
 from app.reasoning.orchestrator import ReasoningOrchestrator
 from app.schemas import (
+    EvidenceOut,
     FindingOut,
     HypothesisOut,
     LimitationOut,
     ReasonRequest,
     ReasonResponse,
     RecommendationOut,
+    UncertaintyOut,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,18 +64,53 @@ def reason(request: ReasonRequest) -> ReasonResponse:
     return ReasonResponse(
         answer=result.final_answer_text,
         intent=result.question.intent,
+        evidence=[
+            EvidenceOut(
+                id=e.id,
+                source_tool=e.source_tool,
+                evidence_type=e.evidence_type,
+                metric=e.metric,
+                result_summary=e.result_summary,
+                sample_size=e.sample_size,
+            )
+            for e in result.evidence
+        ],
         findings=[
             FindingOut(
+                id=f.id,
                 statement=f.statement,
                 classification=f.classification,
                 cross_checked=f.cross_checked,
-                uncertainty_level=f.uncertainty.level if f.uncertainty else None,
+                uncertainty=(
+                    UncertaintyOut(
+                        level=f.uncertainty.level,
+                        point_estimate=f.uncertainty.point_estimate,
+                        interval_low=f.uncertainty.interval_low,
+                        interval_high=f.uncertainty.interval_high,
+                        confidence_level=f.uncertainty.confidence_level,
+                        method=f.uncertainty.method,
+                    )
+                    if f.uncertainty
+                    else None
+                ),
+                supporting_evidence=f.supporting_evidence,
             )
             for f in result.findings
         ],
-        limitations=[LimitationOut(category=l.category, text=l.text, severity=l.severity) for l in result.limitations],
+        limitations=[
+            LimitationOut(category=l.category, text=l.text, severity=l.severity, affected_findings=l.affected_findings)
+            for l in result.limitations
+        ],
         hypotheses=[
-            HypothesisOut(description=h.description, is_causal=h.is_causal, status=h.status) for h in result.hypotheses
+            HypothesisOut(
+                id=h.id,
+                description=h.description,
+                is_causal=h.is_causal,
+                status=h.status,
+                evidence_for=h.evidence_for,
+                evidence_against=h.evidence_against,
+            )
+            for h in result.hypotheses
         ],
         recommendation=(
             RecommendationOut(
@@ -82,10 +119,12 @@ def reason(request: ReasonRequest) -> ReasonResponse:
                 confidence=result.recommendation.confidence,
                 assumptions=result.recommendation.assumptions,
                 risks=result.recommendation.risks,
+                supporting_findings=result.recommendation.supporting_findings,
             )
             if result.recommendation
             else None
         ),
         tools_used=[e.source_tool for e in result.evidence],
         reasoning_trace=result.reasoning_trace,
+        principle_violations=result.principle_violations,
     )

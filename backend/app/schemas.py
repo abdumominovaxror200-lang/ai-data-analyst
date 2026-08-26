@@ -98,23 +98,54 @@ class ReasonRequest(BaseModel):
     message: str
 
 
+class UncertaintyOut(BaseModel):
+    level: Literal["known", "estimated", "uncertain", "unavailable"]
+    point_estimate: float | None = None
+    interval_low: float | None = None
+    interval_high: float | None = None
+    confidence_level: float | None = None
+    method: str | None = None
+
+
+class EvidenceOut(BaseModel):
+    """Phase (Master Mission) P1 fix: previously, no field anywhere in this API
+    carried the actual computed value(s) behind a Finding -- only a generic
+    auto-generated sentence like "describe_data produced a result for 'revenue'."
+    `result_summary` is the real tool output (already bounded to <=20 top-level
+    keys by app.reasoning.executor._bounded_summary before it ever reaches here),
+    so a caller can show/trace the real number, not just meta-commentary."""
+
+    id: str
+    source_tool: str
+    evidence_type: Literal["FACT", "CALCULATED_RESULT", "STATISTICAL_RESULT"]
+    metric: str | None = None
+    result_summary: dict[str, Any] = Field(default_factory=dict)
+    sample_size: int | None = None
+
+
 class FindingOut(BaseModel):
+    id: str
     statement: str
     classification: Literal["FACT", "CALCULATED_RESULT", "STATISTICAL_RESULT", "HYPOTHESIS", "ASSUMPTION", "UNKNOWN"]
     cross_checked: bool = False
-    uncertainty_level: Literal["known", "estimated", "uncertain", "unavailable"] | None = None
+    uncertainty: UncertaintyOut | None = None
+    supporting_evidence: list[str] = Field(default_factory=list)  # EvidenceOut.id values
 
 
 class LimitationOut(BaseModel):
     category: str
     text: str
     severity: str
+    affected_findings: list[str] = Field(default_factory=list)  # FindingOut.id values
 
 
 class HypothesisOut(BaseModel):
+    id: str
     description: str
     is_causal: bool
     status: str
+    evidence_for: list[str] = Field(default_factory=list)  # EvidenceOut.id values
+    evidence_against: list[str] = Field(default_factory=list)
 
 
 class RecommendationOut(BaseModel):
@@ -123,14 +154,19 @@ class RecommendationOut(BaseModel):
     confidence: Literal["high", "medium", "low"] | None = None
     assumptions: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)
+    supporting_findings: list[str] = Field(default_factory=list)  # FindingOut.id values
 
 
 class ReasonResponse(BaseModel):
     answer: str
     intent: str
+    evidence: list[EvidenceOut] = Field(default_factory=list)
     findings: list[FindingOut] = Field(default_factory=list)
     limitations: list[LimitationOut] = Field(default_factory=list)
     hypotheses: list[HypothesisOut] = Field(default_factory=list)
     recommendation: RecommendationOut | None = None
     tools_used: list[str] = Field(default_factory=list)
     reasoning_trace: list[str] = Field(default_factory=list)
+    # Phase 4 P2's machine-checkable epistemic-principle audit -- computed since
+    # Phase 4 but never surfaced through this API until now (Master Mission P1 fix).
+    principle_violations: list[str] = Field(default_factory=list)
