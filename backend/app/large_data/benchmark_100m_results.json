@@ -1,0 +1,77 @@
+{
+  "$note": "Real, measured results from a one-off 100M-row benchmark run on the dev sandbox this was built on (16.95 GB total RAM, ~2.25 GB available at benchmark time, ~21 GB free disk). Not re-generated automatically -- re-run via `python -m app.large_data.benchmark_100m <command>` (see module docstring) or `RUN_100M_BENCHMARK=1 pytest tests/test_large_data_100m.py` to refresh on different hardware.",
+  "machine": {
+    "ram_total_gb": 16.95,
+    "ram_available_gb_at_benchmark_time": 2.25,
+    "disk_free_gb_at_benchmark_time": 21.42
+  },
+  "dataset": {
+    "rows": 100000000,
+    "columns": ["date", "region", "product", "quantity", "revenue", "cost"],
+    "file_size_gb": 4.066,
+    "bytes_per_row": 43.66,
+    "generation_elapsed_sec": 451.49
+  },
+  "chunked_read": {
+    "chunksize": 200000,
+    "rows_counted": 100000000,
+    "wall_time_sec": 70.71,
+    "peak_rss_mb": 125.65,
+    "rows_per_sec": 1414243,
+    "finding": "Memory stays bounded (125.65 MB) regardless of the 100M-row scale -- confirms chunked_reader.py's core claim holds at this scale, not just at the previously-tested 10M."
+  },
+  "chunked_aggregate": {
+    "chunksize": 200000,
+    "chunks_processed": 500,
+    "rows_seen": 100000000,
+    "wall_time_sec": 149.56,
+    "peak_rss_mb": 126.43,
+    "result": {"East": 25003882757.46, "North": 25000748785.49, "South": 24997608612.59, "West": 25000752780.05},
+    "finding": "Full groupby-sum over 100M rows, memory still bounded at ~126 MB."
+  },
+  "sampling": {
+    "BEFORE_FIX": {
+      "reservoir_sample_100k_from_100m_sec": 6148.57,
+      "bernoulli_sample_sec": 88.99,
+      "finding": "reservoir_sample_csv was ~87x slower than chunked_read over the same file -- a real performance bug, not expected/acceptable overhead. Root cause: a per-winner `.iloc[slot] = ...` pandas scalar assignment inside a Python loop -- the winner *count* was small as designed, but pandas' per-call constant-factor overhead for scalar .iloc assignment dominates at this row count."
+    },
+    "AFTER_FIX": {
+      "reservoir_sample_100k_from_100m_sec": 110.12,
+      "bernoulli_sample_sec": 118.19,
+      "speedup": "55.8x",
+      "fix": "Batched all of a chunk's reservoir winners into a single vectorized `.iloc[fancy_index] = values` assignment instead of a per-winner loop. Verified numpy/pandas fancy-index assignment applies 'last write wins' for duplicate target indices, exactly matching the original per-row sequential-loop semantics -- a pure performance fix, zero behavior change. All pre-existing correctness/determinism tests (test_large_data.py) pass unmodified."
+    }
+  },
+  "sql_bridge_current_system": {
+    "tested": false,
+    "reason": "app.sql.duckdb_source.DuckDBDataSource takes an in-memory pandas DataFrame today, not a file path -- querying via the existing bridge requires full materialization first. A full 100M-row pandas DataFrame needs ~9.2 GB (see naive_load_ceiling below), far beyond this machine's ~2.25 GB available RAM at benchmark time -- not attempted, to avoid an OS-level crash/thrash. This is a real, current architectural boundary of the SQL bridge, not a bug -- documented, not silently assumed to scale."
+  },
+  "naive_load_ceiling_extrapolated": {
+    "measured_rows": 2000000,
+    "measured_wall_time_sec": 2.33,
+    "measured_attributable_delta_mb": 188.32,
+    "measured_bytes_per_row": 98.73,
+    "extrapolated_100m_row_gb": 9.2,
+    "note": "LINEAR EXTRAPOLATION from a real 2M-row measurement (in a fresh process, separate from generation, to avoid peak-RSS contamination), NOT a measurement at 100M rows. Confirms a full in-memory load at 100M rows would need ~9.2 GB, well beyond the ~2.25 GB available on this machine at benchmark time."
+  },
+  "duckdb_direct_csv_FORWARD_LOOKING": {
+    "tested": true,
+    "row_count": 100000000,
+    "count_query_elapsed_sec": 5.56,
+    "groupby_query_elapsed_sec": 6.69,
+    "groupby_result": {"East": 25003882757.46, "West": 25000752780.05, "North": 25000748785.49, "South": 24997608612.59},
+    "duckdb_memory_limit_used_gb": 1,
+    "note": "DuckDB querying the 100M-row CSV FILE DIRECTLY via read_csv_auto, completely bypassing pandas -- NOT what the shipped DuckDBDataSource does today (see sql_bridge_current_system above). Dramatically faster than the pandas-chunked approach for the same data (5.56s/6.69s vs 70.71s/149.56s) using only a 1 GB DuckDB memory limit. Strong forward-looking evidence for a future architectural decision: migrating the SQL bridge to stream directly from disk via DuckDB instead of requiring an in-memory DataFrame first."
+  },
+  "memory_guard_failure_recovery": {
+    "tested": true,
+    "raised": true,
+    "error_type": "MemoryLimitExceededError",
+    "finding": "A deliberately undersized chunk-byte ceiling correctly raises a clean, actionable error rather than crashing or silently truncating -- confirmed graceful failure recovery."
+  },
+  "truncated_file_failure_recovery": {
+    "tested": true,
+    "raised": false,
+    "finding": "A CSV truncated mid-final-row does NOT raise and does NOT drop the partial row -- pandas keeps it as an extra row with the missing trailing fields read as NaN. Silent, not a crash -- worth knowing (a truncated source file produces a partially-NaN row, not an error) but not itself a bug given this project's tools already treat NaN as missing data throughout."
+  }
+}

@@ -1,0 +1,208 @@
+{
+  "total_tasks": 37,
+  "passed": 18,
+  "partial": 0,
+  "failed": 19,
+  "overall_score_pct": 48.6,
+  "category_scores_pct": {
+    "descriptive_analysis": 100.0,
+    "sql_analysis": 100.0,
+    "statistical_testing": 100.0,
+    "regression": 66.7,
+    "forecasting": 100.0,
+    "clustering_segmentation": 100.0,
+    "eda": 33.3,
+    "data_quality": 0.0,
+    "ambiguous_questions": 0.0,
+    "causal_traps": 0.0,
+    "insufficient_data": 0.0,
+    "business_recommendations": 0.0
+  },
+  "cases": [
+    {
+      "case_id": "da_01",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "da_02",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "da_03",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "sql_01",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "sql_02",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "sql_03",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "stat_01",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "stat_02",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "stat_03",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "reg_01",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "reg_02",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "reg_03",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "fc_01",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "fc_02",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "fc_03",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "cls_01",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "cls_02",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "cls_03",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "eda_01",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "eda_02",
+      "verdict": "PASS",
+      "explanation": "All applicable structural checks passed."
+    },
+    {
+      "case_id": "eda_03",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "dq_01",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "dq_02",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "dq_03",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "amb_01",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "amb_02",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "amb_03",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "ct_01",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "ct_02",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "ct_03",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "ct_04",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "id_01",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "id_02",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "id_03",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "br_01",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "br_02",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    },
+    {
+      "case_id": "br_03",
+      "verdict": "FAIL",
+      "explanation": "Provider error: The AI is receiving a lot of requests right now. Please try again in a moment."
+    }
+  ]
+}
