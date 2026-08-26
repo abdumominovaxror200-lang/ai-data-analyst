@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   ChatResponse,
   DatasetProfile,
+  ReasonResponse,
   ReportResponse,
   UploadResponse,
 } from "../types";
@@ -46,6 +47,11 @@ export async function sendChatMessage(
 
 export async function generateReport(datasetId: string): Promise<ReportResponse> {
   const { data } = await api.post<ReportResponse>("/reports", { dataset_id: datasetId });
+  return data;
+}
+
+export async function runReasoning(datasetId: string, message: string): Promise<ReasonResponse> {
+  const { data } = await api.post<ReasonResponse>("/reason", { dataset_id: datasetId, message });
   return data;
 }
 

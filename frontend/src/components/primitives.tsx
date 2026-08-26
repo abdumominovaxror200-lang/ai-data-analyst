@@ -63,16 +63,24 @@ export function Button({
   );
 }
 
-export function Badge({ children, tone = "neutral" }: PropsWithChildren<{ tone?: "neutral" | "good" | "warn" | "bad" | "accent" }>) {
+export function Badge({
+  children,
+  tone = "neutral",
+  className = "",
+}: PropsWithChildren<{ tone?: "neutral" | "good" | "warn" | "bad" | "accent" | "stat" | "hypo"; className?: string }>) {
   const tones = {
     neutral: "bg-ink-700 text-ink-200",
     good: "bg-good/15 text-good",
     warn: "bg-warn/15 text-warn",
     bad: "bg-bad/15 text-bad",
     accent: "bg-accent/15 text-accent-soft",
+    // Added for the reasoning layer's 6-way finding classification, which needs
+    // more visually distinct categories than the original 5 tones cover.
+    stat: "bg-stat/15 text-stat",
+    hypo: "bg-hypo/15 text-hypo",
   };
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${tones[tone]}`}>
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${tones[tone]} ${className}`}>
       {children}
     </span>
   );
