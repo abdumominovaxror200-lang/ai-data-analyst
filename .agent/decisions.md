@@ -191,6 +191,29 @@ gaps. **Both closed in Phase 4, verified end-to-end, not just unit-tested:**
    concurrent agent, or serialize live-LLM test execution, or budget quota
    explicitly before launching multiple live-testing agents in parallel.
 
+## Decided (this session, "Phase 5") — real-LLM benchmark run + 100M-row test
+
+Ran the full 37-case + 15-case real-LLM benchmarks live (sequentially, not
+concurrently, per finding #2 above). Real results: 18/37 professional cases and
+3/15 adversarial cases got an actual model response before hitting a sustained
+provider-capacity wall ("AI is receiving a lot of requests" — persisted 55 minutes
+across 19 different cases, a hard block, not transient congestion). **Of every case
+that got a real response, 100% passed.** Categories with zero real attempts are
+**unmeasured**, not "0% failed" — this distinction is load-bearing for anyone
+reading `real_llm_results.json` later; do not report those category percentages as
+real failure rates. Full breakdown in the chat transcript's Phase 5 report.
+
+100M-row large-data benchmark (10x past the previous largest test): chunking stays
+memory-bounded at this scale (confirmed, not assumed). Found and fixed a real
+55.8x-speedup bug in `reservoir_sample_csv` (per-row pandas `.iloc[]` assignment
+anti-pattern, invisible at smaller scale, surfaced only by pushing to 100M rows).
+Documented, not fixed, a real architectural boundary: the SQL bridge and
+`profile_dataset` both require full in-memory materialization, infeasible at 100M
+rows on this machine (~9.2 GB needed vs ~2.25 GB available) — a forward-looking
+DuckDB-direct-CSV experiment (5.6s to count 100M rows, no pandas materialization)
+is strong evidence for a future SQL-bridge redesign, not something implemented
+this pass. Full numbers: `backend/app/large_data/benchmark_100m_results.json`.
+
 ## Open — need a decision before the relevant wave starts
 
 1a. **New API route (`POST /api/analyze`) vs. a `mode=deep` flag on the existing chat
