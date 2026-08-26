@@ -1,0 +1,34 @@
+# Python
+venv/
+.venv/
+env/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Env / secrets — never bake these into an image
+.env
+.env.local
+.env.*.local
+
+# Runtime data (uploaded datasets — mounted as a volume, not part of the image)
+storage/
+
+# Tests / docs / dev scripts — not needed to run the service
+tests/
+docs/
+scripts/
+
+# VCS / editor / OS
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

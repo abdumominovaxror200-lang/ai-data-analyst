@@ -1,0 +1,46 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ai-data-analyst-backend
+    env_file:
+      - .env
+    environment:
+      # Container-internal port the app listens on; matches the "8000:8000"
+      # mapping below and backend/Dockerfile's EXPOSE/HEALTHCHECK.
+      PORT: "8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      # Named volume for uploaded datasets (app/config.py's storage_dir,
+      # default "./storage" resolved against /app inside the container) so
+      # they survive container restarts/recreation.
+      - backend_storage:/app/storage
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Same-origin relative path — nginx (frontend/nginx.conf) proxies
+        # /api/* to this backend service by name. See frontend/Dockerfile's
+        # top comment for why this must stay consistent with that proxy.
+        VITE_API_BASE_URL: /api
+    image: ai-data-analyst-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  backend_storage:

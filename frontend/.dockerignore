@@ -1,0 +1,19 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Env — VITE_API_BASE_URL is passed as a build ARG in docker-compose.yml, not
+# read from a .env file inside the image.
+.env
+.env.local
+.env.*.local
+
+# VCS / editor / OS
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+*.log
+npm-debug.log*

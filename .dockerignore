@@ -1,0 +1,45 @@
+# Root-level .dockerignore — used if an image is ever built with the repo
+# root as build context (e.g. `docker build -f backend/Dockerfile .`).
+# docker-compose.yml itself sets each service's context to ./backend and
+# ./frontend, which have their own more specific .dockerignore files.
+
+.git/
+.gitignore
+.agent/
+reports/
+docs/
+data/
+*.md
+
+# Python
+**/venv/
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/*.egg-info/
+
+# Node / frontend build
+**/node_modules/
+**/dist/
+**/dist-ssr/
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+
+# Runtime data
+backend/storage/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
