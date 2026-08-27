@@ -10,7 +10,9 @@ follows):
    supporting causal hypothesis, and forbids a forced/fake recommendation confidence.
 2. **Code-level**: `causation_guard.enforce_causation_guard` re-scans the model's own
    output afterward and deterministically hedges anything the prompt-level instruction
-   failed to catch.
+   failed to catch; `conclusion_guard.enforce_conclusion_guard` separately prepends an
+   unmissable caveat whenever a `blocks_conclusion`-severity limitation is present,
+   regardless of whether the model's own prose acknowledged it.
 
 Evidence content reaching this call is wrapped with the same `[UNTRUSTED DATA]` marker
 `agent.py` uses for every tool result -- it originates from the dataset (via the
@@ -27,6 +29,7 @@ from app.agent.agent import _wrap_tool_payload
 from app.agent.providers import LLMProvider
 from app.reasoning._structured_call import complete_json
 from app.reasoning.causation_guard import enforce_causation_guard
+from app.reasoning.conclusion_guard import enforce_conclusion_guard
 from app.reasoning.contracts import (
     AnalysisPlan,
     AnalyticalQuestion,
@@ -108,7 +111,8 @@ def synthesize(
     recommendation = _parse_recommendation(raw.get("recommendation"), findings)
 
     hedged_text, was_hedged, matched = enforce_causation_guard(final_text, hypotheses)
-    return hedged_text, recommendation, was_hedged, matched
+    caveated_text, _caveat_added = enforce_conclusion_guard(hedged_text, limitations)
+    return caveated_text, recommendation, was_hedged, matched
 
 
 def _claims_text(claims: list[Claim]) -> str:

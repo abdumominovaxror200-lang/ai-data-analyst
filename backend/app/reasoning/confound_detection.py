@@ -213,7 +213,7 @@ def detect_confounds(df: pd.DataFrame, evidence: list[Evidence]) -> list[Limitat
                 Limitation(
                     category="methodological",
                     text=(
-                        f"'{other_col}' is distributed very differently across the compared "
+                        f"'{other_col}' has a very different mix across the compared "
                         f"'{group_col}' groups ({', '.join(str(v) for v in group_values)}) -- "
                         f"this comparison may reflect a difference in '{other_col}' rather than "
                         f"a true '{group_col}' effect (a possible confounding variable)."

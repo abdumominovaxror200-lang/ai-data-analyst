@@ -108,6 +108,74 @@ def test_fewer_than_three_groups_is_not_flagged_regardless_of_magnitude():
     assert not check_numerical_sanity(evidence)
 
 
+# --- group-size imbalance (final stress-test mission: hard_ab_01b real gap) ------------
+
+
+def test_a_dramatically_imbalanced_two_sample_comparison_is_flagged():
+    """The real hard_ab_01b gap: chi_square_test's own contingency_table shape,
+    480-vs-40 -- a real statistical-power concern that was previously invisible
+    (verifier.py's tiny-sample check only looks at the TOTAL, which is a perfectly
+    adequate 520)."""
+    table = {"treatment": {"True": 7, "False": 33}, "control": {"True": 52, "False": 428}}
+    evidence = [_ev("ev_0", "chi_square_test", None, {"contingency_table": table})]
+    limitations = check_numerical_sanity(evidence)
+    assert any("imbalance" in l.text.lower() and "power" in l.text.lower() for l in limitations)
+    assert any(l.category == "sample_size" for l in limitations)
+
+
+def test_a_t_test_group_a_group_b_imbalance_is_flagged():
+    evidence = [_ev("ev_0", "t_test", "revenue", {
+        "group_a": {"label": "North", "n": 200}, "group_b": {"label": "South", "n": 15},
+    })]
+    limitations = check_numerical_sanity(evidence)
+    assert any("imbalance" in l.text.lower() for l in limitations)
+
+
+def test_an_anova_test_group_imbalance_is_flagged():
+    evidence = [_ev("ev_0", "anova_test", "revenue", {
+        "groups": {"A": {"n": 300, "mean": 1.0}, "B": {"n": 40, "mean": 2.0}, "C": {"n": 35, "mean": 3.0}},
+    })]
+    limitations = check_numerical_sanity(evidence)
+    assert any("imbalance" in l.text.lower() for l in limitations)
+
+
+def test_evenly_sized_groups_are_not_flagged_for_imbalance():
+    evidence = [_ev("ev_0", "t_test", "revenue", {
+        "group_a": {"label": "North", "n": 100}, "group_b": {"label": "South", "n": 90},
+    })]
+    assert not check_numerical_sanity(evidence)
+
+
+# --- unusual/short baseline window (final stress-test mission: hard_price_01b real gap) --
+
+
+def test_a_much_shorter_baseline_period_is_flagged():
+    """The real hard_price_01b gap: compare_periods's own nested current_period/
+    previous_period shape, a 5-day pre-period vs a 30-day post-period."""
+    evidence = [_ev("ev_0", "compare_periods", "conversion_rate", {
+        "current_period": {"start": "2025-04-01", "end": "2025-04-30", "value": 0.12, "n": 30},
+        "previous_period": {"start": "2025-03-27", "end": "2025-03-31", "value": 0.05, "n": 4},
+    })]
+    limitations = check_numerical_sanity(evidence)
+    assert any("unusual" in l.text.lower() and "baseline" in l.text.lower() for l in limitations)
+
+
+def test_similarly_sized_periods_are_not_flagged():
+    evidence = [_ev("ev_0", "compare_periods", "conversion_rate", {
+        "current_period": {"start": "2025-04-01", "end": "2025-04-30", "value": 0.12, "n": 30},
+        "previous_period": {"start": "2025-03-01", "end": "2025-03-31", "value": 0.10, "n": 28},
+    })]
+    assert not check_numerical_sanity(evidence)
+
+
+def test_missing_period_n_fields_are_not_flagged_not_crashed():
+    evidence = [_ev("ev_0", "compare_periods", "conversion_rate", {
+        "current_period": {"start": "2025-04-01", "end": "2025-04-30", "value": 0.12},
+        "previous_period": {"start": "2025-03-01", "end": "2025-03-31", "value": 0.10},
+    })]
+    assert not check_numerical_sanity(evidence)
+
+
 # --- integration: wired into build_findings ---------------------------------------------
 
 

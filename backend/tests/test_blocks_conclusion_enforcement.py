@@ -223,3 +223,46 @@ def test_blocks_conclusion_limitation_is_visible_in_the_final_analysis_result():
     assert any("format" in t.lower() for t in limitation_texts), (
         f"the real confound limitation did not survive into the final result: {limitation_texts}"
     )
+
+
+# --- 5. blocks_conclusion caveat reaches the free-text answer, not just the ----------
+#        structured recommendation (final stress-test mission, Phase 4/6).
+
+
+def test_blocks_conclusion_prepends_an_unmissable_caveat_to_the_free_text_answer():
+    """Real gap found auditing the hard benchmark's honesty-vs-overclaiming pairs:
+    recommendation_grounding.py's blocks_conclusion override already prevents a
+    confident *structured* Recommendation, but final_answer_text -- the prose a user
+    actually reads -- was never touched, so a scripted/real model could still write a
+    flatly confident answer ("Yes, North is clearly better...") right next to a
+    correctly-detected severe confound. conclusion_guard.enforce_conclusion_guard
+    (wired into synthesizer.synthesize) now deterministically prepends a caveat
+    whenever any blocks_conclusion limitation exists, regardless of what the model's
+    own prose said -- this drives the real orchestrator end-to-end to prove it."""
+    record = _record("region_size_confound")
+    parsed_question = {
+        "intent": "comparative", "requested_metrics": ["avg_basket"], "requested_dimensions": ["region"],
+        "requested_time_range": None, "requested_population": None, "explicit_constraints": [],
+        "required_confidence": None, "language": "en", "claims": [],
+    }
+    plan = {
+        "objective": "Compare regions", "capability_categories": ["GENERAL_ANALYSIS"], "steps": [],
+        "tools_required": ["group_and_aggregate"], "expected_outputs": [], "validation_steps": [],
+        "stopping_conditions": ["done"], "hypotheses": [],
+    }
+    provider = _scripted_provider(
+        parsed_question, plan,
+        [("group_and_aggregate", {"group_by": "region", "agg_column": "avg_basket", "agg_func": "mean"})],
+        "Yes, North is clearly a better-performing region than South.",
+        None,
+    )
+    orchestrator = ReasoningOrchestrator(provider)
+    result = orchestrator.analyze(record, "Is North a better-performing region than South?")
+
+    assert any(l.severity == "blocks_conclusion" for l in result.limitations)
+    assert result.final_answer_text.startswith("Important caveat:"), (
+        f"a blocks_conclusion limitation existed but the free-text answer carried no "
+        f"caveat: {result.final_answer_text!r}"
+    )
+    # the model's own answer is preserved, not discarded -- the caveat is additive
+    assert "North is clearly a better-performing region" in result.final_answer_text

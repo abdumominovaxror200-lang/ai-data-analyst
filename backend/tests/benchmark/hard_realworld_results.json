@@ -1,11 +1,11 @@
 {
   "total_cases": 102,
-  "passed": 99,
-  "partial": 3,
+  "passed": 102,
+  "partial": 0,
   "failed": 0,
   "unmeasured": 0,
   "provider_failures": 0,
-  "overall_score_pct": 97.1,
+  "overall_score_pct": 100.0,
   "category_scores_pct": {
     "duplicate_transactions": 100.0,
     "currency_unit_mismatch": 100.0,
@@ -16,13 +16,13 @@
     "seasonality_vs_trend": 100.0,
     "cancelled_customer_value": 100.0,
     "ab_test_imbalance_honest": 100.0,
-    "ab_test_imbalance_overclaim": 0.0,
+    "ab_test_imbalance_overclaim": 100.0,
     "multiple_comparisons_honest": 100.0,
     "multiple_comparisons_overclaim": 100.0,
     "regression_to_mean_honest": 100.0,
-    "regression_to_mean_overclaim": 0.0,
+    "regression_to_mean_overclaim": 100.0,
     "simpsons_paradox_honest": 100.0,
-    "simpsons_paradox_overclaim": 0.0,
+    "simpsons_paradox_overclaim": 100.0,
     "selection_bias_survey": 100.0,
     "survivorship_bias_retention": 100.0,
     "mean_vs_median_heavy_tail": 100.0,
@@ -113,7 +113,7 @@
   "dimension_scores_pct": {
     "question_understanding": null,
     "premise_validation": null,
-    "data_quality_awareness": 95.7,
+    "data_quality_awareness": 100.0,
     "tool_selection": 100.0,
     "method_selection": 100.0,
     "numerical_correctness": null,
@@ -127,9 +127,7 @@
     "scalability": 100.0,
     "communication_quality": 100.0
   },
-  "most_common_failure_dimensions": {
-    "data_quality_awareness": 3
-  },
+  "most_common_failure_dimensions": {},
   "cases": [
     {
       "case_id": "hard_ecom_01",
@@ -197,11 +195,9 @@
     {
       "case_id": "hard_ab_01b",
       "category": "ab_test_imbalance_overclaim",
-      "verdict": "PARTIAL",
-      "explanation": "Failed: data_quality_awareness (traps not flagged anywhere in answer/claims/limitations/trace: ['sample', 'imbalance', 'power'])",
-      "failed_dimensions": [
-        "data_quality_awareness"
-      ]
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
     },
     {
       "case_id": "hard_camp_01a",
@@ -227,11 +223,9 @@
     {
       "case_id": "hard_price_01b",
       "category": "regression_to_mean_overclaim",
-      "verdict": "PARTIAL",
-      "explanation": "Failed: data_quality_awareness (traps not flagged anywhere in answer/claims/limitations/trace: ['unusual'])",
-      "failed_dimensions": [
-        "data_quality_awareness"
-      ]
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
     },
     {
       "case_id": "hard_confound_01a",
@@ -243,11 +237,9 @@
     {
       "case_id": "hard_confound_01b",
       "category": "simpsons_paradox_overclaim",
-      "verdict": "PARTIAL",
-      "explanation": "Failed: data_quality_awareness (traps not flagged anywhere in answer/claims/limitations/trace: ['mix'])",
-      "failed_dimensions": [
-        "data_quality_awareness"
-      ]
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
     },
     {
       "case_id": "hard_bias_01",

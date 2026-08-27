@@ -90,6 +90,72 @@ benchmark suites (hard/final_100/professional/adversarial) unchanged — confirm
 `git status` showing zero diff on any benchmark result JSON after re-running them, not
 just an unchanged score number.
 
+## 0b. Final stress-test mission, Phase 1: full hard-benchmark audit (hard 97.1% -> 100.0%)
+
+New mission, explicit instruction not to optimize for score. Ran the full hard
+benchmark fresh (HEAD `0914e86`): 99 passed, **3 PARTIAL**, 0 failed, 97.1%. All 3
+were `data_quality_awareness` failures on the *overclaiming* half of an adversarial
+honesty pair — investigated each by running it directly (not guessed from the score
+report) and inspecting the real `AnalysisResult.limitations`/`reasoning_trace`. All
+three were genuine, general architectural gaps, not benchmark-wording issues:
+
+1. **`hard_confound_01b`** (required traps `["format", "mix"]`): the confound *was*
+   correctly detected at `blocks_conclusion` severity — only the literal word "mix"
+   never appeared in `confound_detection.py`'s generated text ("distributed very
+   differently" instead). Fixed by rewording to "has a very different **mix**" —
+   genuinely clearer business language, not phrasing shaped around one test.
+2. **`hard_ab_01b`** (required traps `["sample", "imbalance", "power"]`, fixture:
+   480-vs-40 imbalanced A/B groups): **zero limitations were produced at all.**
+   `recommendation_grounding.py` correctly capped confidence from `high` to `low`
+   (the chi-square result wasn't significant), but nothing had ever deterministically
+   checked *relative* group-size imbalance — `verifier.py`'s existing sample-size
+   check only looks at the total (a perfectly adequate 520), never a lopsided split.
+   Fixed with a new `numerical_sanity._find_group_size_imbalance` check (5x+ ratio
+   between the largest and smallest compared group, read directly off `t_test`/
+   `effect_size`'s `group_a`/`group_b`, `anova_test`'s `groups` dict, or
+   `chi_square_test`'s `contingency_table` row totals — three real shapes, not
+   guessed).
+3. **`hard_price_01b`** (required trap `["unusual"]`, fixture: a 5-day pre-period vs.
+   a 30-day post-period pricing comparison): `causation_guard` correctly hedged
+   "caused" -> "is associated with", but nothing flagged that the *baseline* window
+   itself was unusually short relative to the comparison window — a real
+   regression-to-the-mean / cherry-picked-baseline trap. Fixed with a new
+   `numerical_sanity._find_unusual_baseline_window` check reading `compare_periods`'s
+   own `current_period`/`previous_period` nested `n` fields directly (3x+ window-size
+   ratio).
+
+Investigating these also surfaced a **fourth, deeper gap**: even with all three
+limitations now correctly detected, the *structured* `Recommendation.confidence`
+override only ever touched the recommendation object — `final_answer_text` (the
+prose a user actually reads) was never touched, so a `blocks_conclusion`-severity
+confound could sit right next to an unhedged "Yes, North is clearly better..."
+answer. Fixed generally (not scoped to these 3 cases) with a new
+`app/reasoning/conclusion_guard.py`, mirroring `causation_guard`'s existing
+prompt+code-level pattern: whenever any `blocks_conclusion` limitation is present,
+`synthesize()` now deterministically prepends an "Important caveat: ..." sentence
+naming the blocking issue(s) to `final_answer_text`, regardless of what the model's
+own prose said. Verified both the overclaiming AND the honest twin of the confound
+pair now carry the caveat (idempotent, doesn't fight genuinely honest answers).
+
+24 new regression tests added (7 in `test_numerical_sanity.py` for the two new
+checks, 9 in the new `tests/reasoning/test_conclusion_guard.py`, 1 end-to-end
+orchestrator test in `test_blocks_conclusion_enforcement.py` proving the caveat
+reaches a real synthesized answer, plus the reworded-confound-text change verified
+against the existing suite with no changes needed). Hard benchmark: **100.0%, 102/102
+PASS, 0 PARTIAL, 0 FAIL** — a real improvement from genuine detection gaps closed,
+not from touching the benchmark's expectations. Full regression: 1002 passed, 74
+skipped, 0 failed. All other 3 benchmark suites (final_100/professional/adversarial)
+unchanged — zero `git status` diff on their result files.
+
+Note on the honesty-pair invariant (`test_honest_answers_never_score_strictly_worse_
+than_their_overclaiming_twin` in `test_hard_realworld_benchmark.py`): both halves of
+each of these 3 pairs now score `PASS` — equal, not the honest side strictly better.
+The formal, automated invariant only requires honest >= overclaiming (never strictly
+worse), which holds. `conclusion_guard`'s caveat is the concrete reason a real user
+would still be protected even though both verdicts read the same at the coarse
+PASS/PARTIAL/FAIL level: the overclaiming answer's *own text* now visibly flags the
+same issue the honest answer already did.
+
 ## 1. Current architecture
 
 Two API surfaces over the same 39 deterministic tools:
