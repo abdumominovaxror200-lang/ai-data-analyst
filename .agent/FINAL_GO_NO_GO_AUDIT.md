@@ -160,6 +160,32 @@ which caps at 25MB/500,000 rows and loads fully into memory. This is a deliberat
 documented, not-yet-implemented architectural decision (see
 `production-readiness.md`), not an oversight.
 
+## 9a. Investigated, NOT fixed: subtotal-reconciliation checking is unsafe to build today
+
+Section K of the gap audit asks for "inconsistent subtotals"/"reconciliation
+failures" detection. Confirmed real with a constructed (not benchmark) test against
+the actual demo dataset: a `group_and_aggregate` call that accidentally excludes one
+region sums to $1,216,263.64 against a real unfiltered grand total of $1,518,942.95 —
+a $302,679.31 discrepancy that nothing in the current pipeline would catch (`_cross_check`
+only reaches top-level scalar fields, never a nested `"groups"` list; `numerical_sanity.py`
+has no cross-tool-sum check).
+
+**Investigated building this and deliberately did not** — a real architectural
+prerequisite is missing first: no tool's `result_summary` records which `filters` were
+applied to produce it (confirmed by reading `app/tools/aggregation.py`'s and
+`app/tools/statistics.py`'s actual return dicts). Without that, a reconciliation
+checker cannot distinguish "these two calls covered the same population and genuinely
+disagree" (a real bug) from "these two calls were deliberately scoped differently" (a
+completely normal, expected mismatch — e.g. "Q4 revenue by category" vs. "full-year
+total"). Building the check anyway would trade one real gap for a worse one: false
+"reconciliation failure" warnings on every legitimately-filtered comparison, which is
+exactly the "manufacture a result/don't force a check that isn't safely groundable"
+failure mode this mission explicitly warns against. The smallest real fix is a
+broader prerequisite (recording applied filters on every tool's output, or threading
+`ToolCallRecord.params` through to `Evidence`) — not attempted this session since it
+touches many tools' result shapes and has not yet been justified by a confirmed
+benchmark or live failure, only a constructed one.
+
 ## 10. Known limitations (honest, not exhaustive)
 
 - No persistence beyond process lifetime; single dataset per session; no auth.
@@ -272,6 +298,11 @@ earlier session, unchanged this session.
    only if and when a real failure surfaces — not speculatively.
 4. A live `docker compose up --build` verification once a machine with a working
    Docker daemon is available, to close production readiness's one remaining gap.
+5. Record which `filters` were applied in every aggregation/statistics tool's own
+   result shape (or thread `ToolCallRecord.params` through to `Evidence`) — the real
+   prerequisite identified in §9a for building a safe subtotal-reconciliation check.
+   Broader than a quick patch (touches many tools' result shapes), so scoped as its
+   own item rather than bundled into a smaller fix.
 
 None of the above are blockers to continued use of the system within its currently
 validated scope (single-tenant, single-dataset-per-session, uploads within the
