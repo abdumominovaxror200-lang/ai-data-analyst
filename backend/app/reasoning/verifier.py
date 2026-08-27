@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import Callable
 
 from app.reasoning.contracts import Evidence, Finding, FindingClassification, Limitation, Uncertainty
+from app.reasoning.numerical_sanity import check_numerical_sanity
 
 _CROSS_CHECK_RELATIVE_TOLERANCE = 0.10  # 10%: close enough to call "agreeing"
 _LOW_SAMPLE_SIZE_THRESHOLD = 10
@@ -284,5 +285,6 @@ def build_findings(evidence: list[Evidence]) -> tuple[list[Finding], list[Limita
             )
 
     outlier_limitations = _describe_data_outlier_limitations(evidence)
+    numerical_sanity_limitations = check_numerical_sanity(evidence)
 
-    return findings, cross_check_limitations + sample_size_limitations + outlier_limitations
+    return findings, cross_check_limitations + sample_size_limitations + outlier_limitations + numerical_sanity_limitations

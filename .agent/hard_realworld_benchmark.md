@@ -375,3 +375,43 @@ venv/Scripts/python.exe -m pytest tests/test_hard_realworld_benchmark.py -q
 Schema-sanity checks run in ~4s; the full scoring run (real statistical tests,
 regressions, clustering, RFM/segmentation/churn analysis, and SQL execution across 102
 cases against 23 different datasets) completes in ~10s.
+
+## 17. Architectural addition: general numerical sanity checker (post-97.1% pass)
+
+Not a fix for any specific failing case in this benchmark — a proactive capability
+addition justified by evidence gathered independently across three separate places
+in this project: `.agent/PROFESSIONAL_ANALYST_CAPABILITY_AUDIT.md` (#17, "no general
+numerical sanity checker"), `.agent/final_100_case_benchmark.md`'s documented
+remaining gaps, and this benchmark's own trap categories (`funnel_denominator`,
+`finance_units_mismatch`, `hr_impossible_values`) — all pointing at the same real
+architectural absence: nothing deterministically caught an impossible or badly-scaled
+number in a tool's own output before it reached the user; every existing trap relied
+on the model's own prose happening to notice it.
+
+**Added**: `app/reasoning/numerical_sanity.py`, wired additively into
+`verifier.build_findings` (zero new tool calls, zero new LLM calls, same discipline as
+the existing `_describe_data_outlier_limitations`/`_cross_check`). Three concrete,
+mechanically-checkable rules:
+
+1. Impossible percentage/rate values (negative, or >100% with a documented `mape_pct`
+   exception since MAPE can legitimately exceed 100%).
+2. Population/denominator mismatches — two evidence items about the same metric with
+   wildly different `sample_size` (≥5x) get flagged as potentially not apples-to-apples.
+3. Within-evidence group-magnitude outliers — one group's value ≥50x the median of the
+   others in a `group_and_aggregate`-shaped result, a common units-mismatch signature.
+
+**Verification**: `backend/tests/test_numerical_sanity.py` (12 tests) against
+realistic tool-output shapes (confirmed against the real `_pct`-field naming
+convention used consistently across `app/tools/*.py` — every `_pct` field in this
+codebase is a 0-100 scale, verified by reading every call site, not assumed).
+Re-running this checker against the existing 102-case suite found it does not
+retroactively fire on any current case — an honest, expected result: none of the
+existing cases happen to call a tool in a way that produces the specific shapes these
+rules check (e.g. `finance_units_mismatch`'s cents/dollars gap gets diluted below the
+50x threshold once summed per-item via `group_and_aggregate`, confirmed by direct
+computation). This capability was built from documented gap evidence, not to make an
+existing case pass, and its regression tests directly exercise each rule.
+
+**Result**: All 4 benchmark suites unchanged (hard: 97.1%, final_100: 99.0%,
+professional: 100.0%) — purely additive, no regression. Full backend suite: 953
+passed, 74 skipped, 0 failed.

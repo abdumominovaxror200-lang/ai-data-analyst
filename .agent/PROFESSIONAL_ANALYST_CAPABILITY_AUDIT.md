@@ -47,10 +47,19 @@ the product — see `production-readiness.md`).
 
 **Real, not-yet-closed gaps**: #10 (root-cause analysis is LLM-planned per
 question, not a fixed profile→decompose→compare→hypothesize sequence — the
-capability map explicitly wants the fixed sequence), #17 (no general numerical
-sanity checker beyond the two specific checks that exist), #20's real-LLM
+capability map explicitly wants the fixed sequence), #20's real-LLM
 targeted verification (exists deterministically, not yet spot-checked live
 against a case designed to trip it specifically).
+
+**#17 (general numerical sanity checker) — CLOSED** (post-hard-benchmark pass):
+`app/reasoning/numerical_sanity.py` now runs three deterministic checks against
+already-gathered Evidence on every `/api/reason` call — impossible percentage/rate
+values (negative or >100%, with a documented MAPE exception), population/denominator
+mismatches across evidence for the same metric, and within-evidence group-magnitude
+outliers (a units-mismatch signal). Zero new tool calls, zero new LLM calls. See
+`.agent/hard_realworld_benchmark.md` §16 (numbered as the second architectural fix in
+that log) for the motivating evidence and `backend/tests/test_numerical_sanity.py`
+(12 tests) for verification against realistic tool-output shapes.
 
 ## Benchmark coverage
 
@@ -90,8 +99,7 @@ here, mapped back to these 20 capability areas:
    chain than today's LLM-planned-per-question approach. This is a real design
    question (force a fixed sequence vs. trust the planner more) that should be
    decided deliberately, not bolted on — logged as an open decision.
-3. **General numerical sanity checker** (#17) — sign/magnitude/denominator/
-   order-of-magnitude checks beyond the two specific ones that exist.
+3. ~~General numerical sanity checker (#17)~~ — **DONE**, see above.
 4. **Combined executive-report assembly** (#14) — a single structured document
    combining summary/findings/evidence/visuals/risks/limitations/
    recommendations/confidence/next-steps, not just the separate pieces.
