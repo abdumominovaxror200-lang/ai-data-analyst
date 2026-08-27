@@ -244,7 +244,7 @@
       "case_id": "hard_confound_01b",
       "category": "simpsons_paradox_overclaim",
       "verdict": "PARTIAL",
-      "explanation": "Failed: data_quality_awareness (traps not flagged anywhere in answer/claims/limitations/trace: ['format', 'mix'])",
+      "explanation": "Failed: data_quality_awareness (traps not flagged anywhere in answer/claims/limitations/trace: ['mix'])",
       "failed_dimensions": [
         "data_quality_awareness"
       ]

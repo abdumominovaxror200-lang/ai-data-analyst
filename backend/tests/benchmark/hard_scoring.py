@@ -178,24 +178,35 @@ def run_hard_case(case: dict, record: DatasetRecord) -> HardCaseResult:
         return HardCaseResult(case_id=case["case_id"], category=case["category"], verdict=verdict, dimension_checks=checks, explanation=_explain(checks))
 
     provider = build_mock_provider_from_script(case["script"])
+    return _run_with_provider(case, record, provider)
+
+
+def _run_with_provider(case: dict, record: DatasetRecord, provider) -> HardCaseResult:
+    """Shared scoring core for any already-built provider (MockProvider for the
+    scripted suite, or a real LLMProvider for a live spot-check) -- the exact same 15
+    dimension checks apply regardless of what produced the AnalysisResult, so a real
+    run is graded identically to a scripted one and the two are directly comparable."""
+    exp = case.get("expected", {})
     orchestrator = ReasoningOrchestrator(provider)
     result = orchestrator.analyze(record, case["user_question"])
 
-    checks.append(_check_question_understanding(exp, result))
-    checks.append(_check_premise_validation_result(exp, result))
-    checks.append(_check_data_quality_awareness(exp, _text_haystacks(result)))
-    checks.append(_check_tool_selection(exp, result))
-    checks.append(_check_method_selection(exp, result))
-    checks.append(_check_numerical_correctness(exp, result))
-    checks.append(_check_statistical_correctness(exp, result))
-    checks.append(_check_evidence_grounding(result))
-    checks.append(_check_uncertainty_calibration(exp, result))
-    checks.append(_check_causal_restraint(exp, result))
-    checks.append(_check_hypothesis_quality(exp, result))
-    checks.append(_check_cross_checking(exp, result))
-    checks.append(_check_recommendation_grounding(exp, result))
-    checks.append(_check_scalability(exp, result))
-    checks.append(_check_communication_quality(exp, result))
+    checks: list[DimensionCheck] = [
+        _check_question_understanding(exp, result),
+        _check_premise_validation_result(exp, result),
+        _check_data_quality_awareness(exp, _text_haystacks(result)),
+        _check_tool_selection(exp, result),
+        _check_method_selection(exp, result),
+        _check_numerical_correctness(exp, result),
+        _check_statistical_correctness(exp, result),
+        _check_evidence_grounding(result),
+        _check_uncertainty_calibration(exp, result),
+        _check_causal_restraint(exp, result),
+        _check_hypothesis_quality(exp, result),
+        _check_cross_checking(exp, result),
+        _check_recommendation_grounding(exp, result),
+        _check_scalability(exp, result),
+        _check_communication_quality(exp, result),
+    ]
 
     verdict = _verdict(checks)
     return HardCaseResult(

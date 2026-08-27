@@ -30,7 +30,7 @@ import logging
 from app.agent.providers import LLMProvider
 from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
-from app.reasoning import epistemic_checks, executor, hypothesis_evaluator, planner, question_parser, verifier
+from app.reasoning import confound_detection, epistemic_checks, executor, hypothesis_evaluator, planner, question_parser, verifier
 from app.reasoning.contracts import AnalysisResult, Finding, Limitation
 from app.reasoning.premise_validator import validate_question
 from app.reasoning.recommendation_grounding import evaluate_recommendation_grounding
@@ -90,6 +90,15 @@ class ReasoningOrchestrator:
         trace.append(
             f"findings: {len(findings)}, cross-checked: {sum(1 for f in findings if f.cross_checked)}"
         )
+
+        # --- deterministic (Phase 5): confounding-variable detection -- runs against
+        # the real dataset (not just Evidence), so it lives here rather than in
+        # verifier.py, which never sees record.df. See confound_detection.py's module
+        # docstring for the real live-model failure that motivated this.
+        confound_limitations = confound_detection.detect_confounds(record.df, evidence)
+        if confound_limitations:
+            limitations = limitations + confound_limitations
+            trace.append(f"confound check: {len(confound_limitations)} possible confound(s) flagged")
 
         # --- deterministic (Phase 4 P1): derive hypothesis status from gathered
         # evidence -- never from the LLM declaring itself "supported". This is what

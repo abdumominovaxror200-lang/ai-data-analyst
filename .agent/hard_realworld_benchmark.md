@@ -415,3 +415,44 @@ existing case pass, and its regression tests directly exercise each rule.
 **Result**: All 4 benchmark suites unchanged (hard: 97.1%, final_100: 99.0%,
 professional: 100.0%) — purely additive, no regression. Full backend suite: 953
 passed, 74 skipped, 0 failed.
+
+## 18. Architectural addition: deterministic confounding-variable detection (post real-LLM spot-check)
+
+A small (6-case), representative real-LLM spot-check against the live configured
+provider (see `.agent/hard_realworld_real_llm_spotcheck.md` for the full report) found
+one genuine, confirmed-live model failure: asked "North region has a $55 higher
+average basket size than South -- is North just a better-performing region?" against
+`region_size_confound` (North is 90% large-format stores, South is 90% small-format),
+the real model ran a plain `t_test` on the raw regional comparison and never checked
+whether store format explained the gap. This is exactly the confound the fixture was
+built to test, previously demonstrated only via a scripted response — now confirmed to
+be a real gap in live model behavior, with nothing in the architecture catching it.
+
+**Root cause**: an LLM-reasoning limitation (no deterministic code bug) — the planner
+has no mechanism nudging it to check for confounding variables before accepting a
+two-group comparison as a true group-level effect.
+
+**Fix, per the standing instruction to improve architecture rather than prompts**: a
+new `app/reasoning/confound_detection.py`, wired into `orchestrator.py` (which has
+access to `record.df`, unlike `verifier.py`). It runs unconditionally after any
+group-comparison tool call (`t_test`'s `group_column`/`group_a`/`group_b`,
+`group_and_aggregate`'s `group_by`/`groups` — read directly off each tool's own real
+result shape, confirmed against `app/tools/hypothesis.py`/`app/tools/aggregation.py`),
+scanning every other low-cardinality categorical column in the dataset for a sharp
+distributional difference between the compared groups (a ≥40-percentage-point gap in
+some category's share, verified against the real fixture: format="large" is 90% of
+North vs. 10% of South). Deliberately scoped to categorical-vs-categorical confounds
+only, not continuous numeric ones (a larger undertaking not yet justified by evidence).
+
+**Verification**: `backend/tests/test_confound_detection.py` (9 tests) — a real
+confound is flagged, an evenly-distributed (unconfounded) variable is not, ID-like
+high-cardinality columns are never scanned, small groups are not flagged on noise, and
+duplicate comparisons don't produce duplicate limitations. Confirmed end-to-end
+against the actual scripted `hard_confound_01a`/`01b` cases: **both** now carry the
+structural confound limitation, including the overclaiming twin (`01b`), which never
+mentions "format" in its own prose at all — this is exactly the property that would
+have caught the real live failure, independent of what the model happens to say.
+
+**Result**: all 4 benchmark suites unchanged (hard: 97.1%, final_100: 99.0%,
+professional: 100.0%) — purely additive. Full backend suite: 962 passed, 74 skipped,
+0 failed.
