@@ -137,6 +137,68 @@ def test_the_compared_metric_column_itself_is_never_flagged_as_its_own_confound(
     assert not any(l.affected_findings and "avg_basket" in l.text.split("'")[1] for l in limitations if "'avg_basket'" in l.text[:20])
 
 
+def test_a_nested_hierarchical_column_is_not_flagged_as_a_confound():
+    """Real false positive found while verifying this detector against the actual
+    primary dataset: 'product' was flagged as confounding a 'category' comparison,
+    when category IS product's own grouping -- every product belongs to exactly one
+    category. This is a nested/hierarchical relationship, not an independent
+    confound, and must never be flagged."""
+    df = pd.DataFrame({
+        "category": ["Electronics"] * 10 + ["Apparel"] * 10,
+        "product": (["Laptop"] * 5 + ["Phone"] * 5) + (["Shirt"] * 5 + ["Pants"] * 5),
+        "revenue": np.random.default_rng(3).normal(100, 10, 20),
+    })
+    evidence = [_ev("ev_0", "group_and_aggregate", "revenue", {
+        "group_by": "category", "groups": [{"group": "Electronics", "value": 500.0}, {"group": "Apparel", "value": 480.0}],
+    })]
+    limitations = detect_confounds(df, evidence)
+    assert not any("product" in l.text for l in limitations)
+
+
+def test_a_genuine_confound_with_partial_overlap_is_still_flagged():
+    """A confound doesn't require every value to appear in every group -- only that
+    a meaningful share of other_col's values are genuinely shared, not almost
+    entirely partitioned by group (the nested case above)."""
+    rng = np.random.default_rng(4)
+    rows = []
+    for _ in range(15):
+        rows.append({"region": "North", "tier": "premium", "revenue": rng.normal(200, 10)})
+    for _ in range(5):
+        rows.append({"region": "North", "tier": "standard", "revenue": rng.normal(100, 10)})
+    for _ in range(5):
+        rows.append({"region": "South", "tier": "premium", "revenue": rng.normal(200, 10)})
+    for _ in range(15):
+        rows.append({"region": "South", "tier": "standard", "revenue": rng.normal(100, 10)})
+    df = pd.DataFrame(rows)
+    evidence = [_ev("ev_0", "t_test", "revenue", {
+        "group_column": "region", "group_a": {"label": "North"}, "group_b": {"label": "South"},
+    })]
+    limitations = detect_confounds(df, evidence)
+    assert any("tier" in l.text for l in limitations)
+
+
+def test_datetime_group_column_does_not_raise_or_warn():
+    """Real edge case found via pytest's warning capture: a group_and_aggregate call
+    grouped by a real datetime64 column (e.g. group_by='date') reports string group
+    labels in its 'groups' list -- comparing a datetime64 Series against those
+    strings via a bare `.isin`/`==` either raises a pandas FutureWarning or silently
+    matches nothing. Must work correctly (and warning-free) either way."""
+    import warnings
+
+    df = pd.DataFrame({
+        "date": pd.to_datetime(["2025-01-01"] * 10 + ["2025-02-01"] * 10),
+        "channel": (["web"] * 8 + ["app"] * 2) + (["web"] * 2 + ["app"] * 8),
+        "revenue": np.random.default_rng(5).normal(100, 10, 20),
+    })
+    evidence = [_ev("ev_0", "group_and_aggregate", "revenue", {
+        "group_by": "date", "groups": [{"group": "2025-01-01", "value": 1000.0}, {"group": "2025-02-01", "value": 900.0}],
+    })]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        limitations = detect_confounds(df, evidence)
+    assert any("channel" in l.text for l in limitations)
+
+
 def test_deduplicates_repeated_comparisons_of_the_same_groups():
     df = _confounded_df()
     evidence = [

@@ -456,3 +456,19 @@ have caught the real live failure, independent of what the model happens to say.
 **Result**: all 4 benchmark suites unchanged (hard: 97.1%, final_100: 99.0%,
 professional: 100.0%) — purely additive. Full backend suite: 962 passed, 74 skipped,
 0 failed.
+
+**Immediate follow-up fix**: manually stress-testing the new detector against the
+project's own real `primary` dataset (beyond what the 102-case suite's specific
+assertions would catch) found a genuine false positive: `product` was flagged as
+confounding a `category` comparison in `hard_prim_06`. Root cause: `category` IS
+`product`'s own grouping — every one of the 10 real products belongs to exactly 1 of
+the 4 categories (confirmed by direct computation) — a nested/hierarchical
+relationship, not an independent confound. Fixed with `_is_nested_not_confounded`: a
+genuine confound requires the SAME set of `other_col` categories to appear in BOTH
+compared groups (just at different rates); a nested relationship has each value
+confined almost entirely to one group. 2 more regression tests added (11 total), plus
+a dtype-safety fix (comparing group labels as strings throughout, since a tool's own
+reported group values are always plain strings even when the grouped column itself is
+datetime/numeric — a real pandas `FutureWarning` surfaced during this fix and is now
+covered by its own warning-as-error regression test). Final: 965 passed, 74 skipped, 0
+failed, 0 regressions, no false positive on the real primary dataset.

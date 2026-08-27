@@ -43,6 +43,8 @@ _MIN_GROUP_SIZE = 5  # each compared group needs at least this many rows to trus
 _MIN_CATEGORY_LEVELS = 2
 _MAX_CATEGORY_LEVELS = 20  # avoid scanning near-unique/ID-like columns as "categorical"
 _CONFOUND_PROPORTION_GAP_THRESHOLD = 0.40  # a 40-point swing in a category's share is not noise
+_MIN_SHARED_VALUE_FRACTION = 0.3  # see _is_nested_not_confounded's docstring
+_MIN_PRESENCE_COUNT = 2  # a value must appear this many times in a group to "be present" there
 
 
 def _extract_comparison(result_summary: dict) -> tuple[str | None, list]:
@@ -75,10 +77,56 @@ def _is_candidate_categorical(series: pd.Series) -> bool:
     return _MIN_CATEGORY_LEVELS <= n_unique <= _MAX_CATEGORY_LEVELS
 
 
+def _is_nested_not_confounded(df: pd.DataFrame, group_col: str, group_values: list, other_col: str) -> bool:
+    """Distinguishes a genuine confound (both compared groups contain the SAME set
+    of `other_col` categories, just at different rates -- e.g. both regions have
+    both store formats) from a nested/hierarchical relationship (each `other_col`
+    value belongs almost entirely to ONE group -- e.g. each product belongs to
+    exactly one category, so 'product' trivially 'differs' across 'category' groups
+    without being an independent confounding variable at all).
+
+    Found as a real false positive while verifying this detector against the
+    project's own primary dataset: `product` was flagged as confounding a
+    `category` comparison, when category IS product's own grouping -- every one of
+    the 10 products belongs to exactly 1 of the 4 categories (confirmed by direct
+    computation), the textbook nested-not-confounded case this guard exists for.
+
+    Returns True (skip -- not a real confound) when fewer than
+    `_MIN_SHARED_VALUE_FRACTION` of `other_col`'s distinct values present in this
+    comparison actually appear (with a minimum real presence, not a stray row) in
+    more than one of the compared groups.
+
+    Compares `group_col` as strings throughout (rather than `.isin`/`==` against the
+    column's native dtype) -- a tool's own reported group labels (e.g.
+    `group_and_aggregate`'s `groups[i]["group"]`) are always plain strings even when
+    `group_col` itself is a datetime/numeric column, so a native-dtype comparison
+    would silently match nothing (or, for datetime columns specifically, raise a
+    pandas `FutureWarning` on `.isin` with mismatched types)."""
+    group_col_as_str = df[group_col].astype(str)
+    group_values_str = {str(v) for v in group_values}
+    subset = df[group_col_as_str.isin(group_values_str)]
+    subset_group_str = group_col_as_str[group_col_as_str.isin(group_values_str)]
+    presence: dict = {}
+    for gv in group_values_str:
+        counts = subset.loc[subset_group_str == gv, other_col].value_counts()
+        for value, count in counts.items():
+            if count >= _MIN_PRESENCE_COUNT:
+                presence.setdefault(value, set()).add(gv)
+
+    if not presence:
+        return True
+    shared = sum(1 for groups_seen in presence.values() if len(groups_seen) > 1)
+    return (shared / len(presence)) < _MIN_SHARED_VALUE_FRACTION
+
+
 def _max_proportion_gap(df: pd.DataFrame, group_col: str, group_values: list, other_col: str) -> float | None:
+    """String-compares `group_col` for the same reason `_is_nested_not_confounded`
+    does -- a tool's own reported group labels are plain strings even when
+    `group_col` is a datetime/numeric column."""
+    group_col_as_str = df[group_col].astype(str)
     subsets: dict = {}
     for gv in group_values:
-        subset = df[df[group_col] == gv]
+        subset = df[group_col_as_str == str(gv)]
         if len(subset) < _MIN_GROUP_SIZE:
             return None
         subsets[gv] = subset[other_col].value_counts(normalize=True)
@@ -114,6 +162,8 @@ def detect_confounds(df: pd.DataFrame, evidence: list[Evidence]) -> list[Limitat
             if other_col == group_col or other_col == ev.metric:
                 continue
             if not _is_candidate_categorical(df[other_col]):
+                continue
+            if _is_nested_not_confounded(df, group_col, group_values, other_col):
                 continue
 
             gap = _max_proportion_gap(df, group_col, group_values, other_col)
