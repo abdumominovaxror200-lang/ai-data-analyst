@@ -214,6 +214,34 @@ DuckDB-direct-CSV experiment (5.6s to count 100M rows, no pandas materialization
 is strong evidence for a future SQL-bridge redesign, not something implemented
 this pass. Full numbers: `backend/app/large_data/benchmark_100m_results.json`.
 
+## Later session ("Master Mission" + hard real-world benchmark + failure-hunting audit)
+
+This file was not kept current through the Master Mission phase or after — the
+authoritative, up-to-date records for that work are `.agent/FINAL_STATUS.md`,
+`.agent/hard_realworld_benchmark.md`, `.agent/PROFESSIONAL_ANALYST_CAPABILITY_AUDIT.md`,
+and `.agent/production-readiness.md`. Summary for anyone reading this file first: 39
+tools, `/api/reason` reasoning layer with causation guarding/recommendation grounding/
+epistemic checks/numerical sanity checking/confounding-variable detection all built and
+tested, a 102-case hard adversarial benchmark (97.1%, `hard_realworld_benchmark.md`), a
+102-case professional benchmark (99.0%, see below), a 6-case real-LLM spot-check (4
+real responses, 2 genuine provider quota exhaustions), full test suite at 970 passed/74
+skipped/0 failed as of this entry. Git log has the full, real chronology; trust it over
+this file for anything after "Decided (this session, 'Phase 5')" above.
+
+**Real correctness bug found via the "investigate every warning" discipline**:
+`outlier_analysis_multivariate`'s Mahalanobis method silently produced mathematically
+invalid (negative) squared distances — not just a cosmetic `RuntimeWarning` — for any
+set of columns with near-exact linear dependency (confirmed against this project's own
+demo dataset: `columns=["revenue","cost","profit"]`, condition number ~8.1e16, rank 2 of
+3, 540/4000 rows affected). `np.linalg.inv` does not raise for a matrix this
+ill-conditioned; it silently returns a garbage inverse. Fixed with an upfront condition-
+number check (`_MAX_CONDITION_NUMBER = 1e10`) that raises a clear `ToolExecutionError`
+instead of returning corrupted results — the same "refuse cleanly, never fabricate"
+discipline every other tool in this codebase already follows. `final_100_cases.json`'s
+`out3` case (which happened to use exactly this collinear column combination) updated to
+reflect the real, now-correct refusal behavior; 3 new regression tests in
+`test_regression_diagnostics.py`.
+
 ## Open — need a decision before the relevant wave starts
 
 1a. **New API route (`POST /api/analyze`) vs. a `mode=deep` flag on the existing chat

@@ -14,6 +14,18 @@ from app.tools.regression import linear_regression
 
 _MIN_SAMPLES = 8  # Shapiro-Wilk and Breusch-Pagan both need more than the bare regression minimum to be meaningful
 _SHAPIRO_MAX_N = 5000  # scipy's Shapiro-Wilk is documented as unreliable/slow well past this
+# Above this condition number, a covariance matrix is numerically singular at float64
+# precision (its inverse is dominated by rounding noise, not real signal) -- e.g. any
+# columns related by an exact or near-exact linear identity (revenue/cost/profit, since
+# profit = revenue - cost). Found as a REAL correctness bug, not merely a cosmetic
+# warning: np.linalg.inv does not raise for a matrix this ill-conditioned, it silently
+# returns a garbage inverse whose quadratic form goes negative for a meaningful
+# fraction of rows (540/4000 on this project's own demo dataset for
+# columns=["revenue","cost","profit"]) -- mathematically impossible for a true
+# Mahalanobis distance, and np.sqrt of a negative number is not just a RuntimeWarning,
+# it silently turns part of the result into NaN. 1e10 is a standard, conservative
+# rule-of-thumb ceiling for "trust this matrix inverse" at float64 precision.
+_MAX_CONDITION_NUMBER = 1e10
 
 
 def regression_diagnostics(
@@ -247,10 +259,16 @@ def outlier_analysis_multivariate(
     if method == "mahalanobis":
         mean = X.mean(axis=0)
         cov = np.cov(X, rowvar=False)
-        try:
-            inv_cov = np.linalg.inv(cov)
-        except np.linalg.LinAlgError:
-            inv_cov = np.linalg.pinv(cov)
+        condition_number = np.linalg.cond(cov)
+        if not np.isfinite(condition_number) or condition_number > _MAX_CONDITION_NUMBER:
+            raise ToolExecutionError(
+                f"columns {columns} are too linearly dependent for a numerically stable "
+                "Mahalanobis multivariate outlier analysis (e.g. one column is an exact or "
+                "near-exact linear combination of the others, such as profit = revenue - cost) "
+                "-- the covariance matrix is effectively singular. Remove one of the "
+                "collinear columns, or use method='elliptic_envelope' instead."
+            )
+        inv_cov = np.linalg.inv(cov)
         diff = X - mean
         distances_sq = np.einsum("ij,jk,ik->i", diff, inv_cov, diff)
         threshold_sq = float(stats.chi2.ppf(1 - contamination, df=len(columns)))

@@ -855,12 +855,11 @@
         "DATA_QUALITY"
       ],
       "required_constraints": [],
-      "expected_classifications": [
-        "STATISTICAL_RESULT"
-      ],
+      "expected_classifications": [],
       "expected_limitations": [],
       "expected_causal_behavior": "not_applicable",
       "dataset": "primary",
+      "_note": "Real tool-implementation bug found and fixed this session: outlier_analysis_multivariate's Mahalanobis method previously produced mathematically invalid (negative) squared distances for collinear columns like these (confirmed: condition number ~8.1e16, rank 2 of 3, 540/4000 rows got a negative distance-squared) rather than refusing cleanly -- see app/tools/regression_diagnostics.py's _MAX_CONDITION_NUMBER guard. expected_classifications=[] matches the established blocked/failed-tool-call pattern (no Evidence is produced, matching sql4/reg4 elsewhere in this benchmark).",
       "script": {
         "parsed_question": {
           "intent": "descriptive",
@@ -905,7 +904,7 @@
             }
           }
         ],
-        "final_answer_text": "A multivariate outlier check across revenue, cost, and profit jointly flags a small set of rows whose combination of values is unusual even though no single value looks extreme on its own."
+        "final_answer_text": "revenue, cost, and profit can't be checked jointly this way -- profit is exactly revenue minus cost, so the three columns are linearly dependent and the covariance matrix this method needs is singular. I'd drop one of the three (e.g. just revenue and cost) before running a multivariate outlier check."
       }
     },
     {

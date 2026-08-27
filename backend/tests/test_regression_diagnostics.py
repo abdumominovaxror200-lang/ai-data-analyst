@@ -150,6 +150,51 @@ def test_outlier_analysis_multivariate_elliptic_envelope_flags_joint_outliers():
     assert len(injected_indices & flagged_indices) >= 2
 
 
+def _df_with_exact_linear_dependency() -> pd.DataFrame:
+    """revenue/cost/profit shape: profit is an exact linear combination of the other
+    two (profit = revenue - cost), making the 3-column covariance matrix singular --
+    the real shape that exposed this bug against the project's own demo dataset."""
+    rng = np.random.default_rng(9)
+    n = 500
+    revenue = rng.normal(400, 150, n)
+    cost = rng.normal(250, 100, n)
+    profit = revenue - cost
+    return pd.DataFrame({"revenue": revenue, "cost": cost, "profit": profit})
+
+
+def test_outlier_analysis_multivariate_rejects_exactly_collinear_columns():
+    """Real bug found via this project's own hard-benchmark work (final_100_cases.json
+    case out3, columns=["revenue","cost","profit"]): the Mahalanobis method's
+    covariance matrix is singular whenever one column is an exact/near-exact linear
+    combination of the others (condition number ~8e16, rank 2 of 3 on the real demo
+    dataset), and `np.linalg.inv` does NOT raise for a matrix this ill-conditioned --
+    it silently returns a garbage inverse whose quadratic form goes negative for a
+    meaningful fraction of rows (540/4000 real rows), which is mathematically
+    impossible for a true Mahalanobis distance and turns into NaN after `np.sqrt`.
+    Must now refuse cleanly instead of returning corrupted results."""
+    df = _df_with_exact_linear_dependency()
+    with pytest.raises(ToolExecutionError, match="linearly dependent"):
+        outlier_analysis_multivariate(df, columns=["revenue", "cost", "profit"], method="mahalanobis")
+
+
+def test_outlier_analysis_multivariate_mahalanobis_still_works_on_non_collinear_columns():
+    """Regression guard: the new condition-number check must not reject ordinary,
+    non-collinear columns -- only genuinely near-singular ones."""
+    df = _df_with_joint_outliers()
+    result = outlier_analysis_multivariate(df, columns=["a", "b"], method="mahalanobis", contamination=0.02)
+    assert result["outlier_count"] >= 3
+
+
+def test_outlier_analysis_multivariate_elliptic_envelope_unaffected_by_collinearity_guard():
+    """The condition-number guard is specific to the mahalanobis path (it needs a
+    literal matrix inverse); elliptic_envelope uses a different, regularized
+    covariance estimator and should be unaffected -- offered as the tool's own
+    suggested alternative in the ToolExecutionError message above."""
+    df = _df_with_exact_linear_dependency()
+    result = outlier_analysis_multivariate(df, columns=["revenue", "cost", "profit"], method="elliptic_envelope", contamination=0.05)
+    assert result["method"] == "elliptic_envelope"
+
+
 def test_outlier_analysis_multivariate_univariate_marginals_look_normal():
     """Confirms the injected points are NOT flagged by simple per-axis z-score
     thresholds -- proving this is a genuinely different capability from the
