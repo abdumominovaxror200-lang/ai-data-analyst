@@ -1,11 +1,11 @@
 {
   "total_cases": 102,
-  "passed": 98,
-  "partial": 4,
+  "passed": 99,
+  "partial": 3,
   "failed": 0,
   "unmeasured": 0,
   "provider_failures": 0,
-  "overall_score_pct": 96.1,
+  "overall_score_pct": 97.1,
   "category_scores_pct": {
     "duplicate_transactions": 100.0,
     "currency_unit_mismatch": 100.0,
@@ -48,7 +48,7 @@
     "causal_marketing_budget_overclaim": 100.0,
     "discontinue_product_recommendation": 100.0,
     "discontinue_product_overclaim": 100.0,
-    "multi_step_root_cause_revenue_decline": 0.0,
+    "multi_step_root_cause_revenue_decline": 100.0,
     "salary_style_outlier_crosscheck": 100.0,
     "practical_vs_statistical_significance": 100.0,
     "underspecified_expand_question": 100.0,
@@ -122,14 +122,13 @@
     "uncertainty_calibration": null,
     "causal_restraint": 100.0,
     "hypothesis_quality": 100.0,
-    "cross_checking": 0.0,
+    "cross_checking": 100.0,
     "recommendation_grounding": 100.0,
     "scalability": 100.0,
     "communication_quality": 100.0
   },
   "most_common_failure_dimensions": {
-    "data_quality_awareness": 3,
-    "cross_checking": 1
+    "data_quality_awareness": 3
   },
   "cases": [
     {
@@ -428,11 +427,9 @@
     {
       "case_id": "hard_prim_06",
       "category": "multi_step_root_cause_revenue_decline",
-      "verdict": "PARTIAL",
-      "explanation": "Failed: cross_checking (no cross-checked finding and no disagreement limitation -- a second, independent verification tool call was expected)",
-      "failed_dimensions": [
-        "cross_checking"
-      ]
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
     },
     {
       "case_id": "hard_prim_07",

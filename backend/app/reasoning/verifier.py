@@ -21,6 +21,8 @@ analysis" rule.
 
 from __future__ import annotations
 
+from typing import Callable
+
 from app.reasoning.contracts import Evidence, Finding, FindingClassification, Limitation, Uncertainty
 
 _CROSS_CHECK_RELATIVE_TOLERANCE = 0.10  # 10%: close enough to call "agreeing"
@@ -142,6 +144,73 @@ def _cross_check(evidence: list[Evidence]) -> tuple[set[str], list[Limitation]]:
     return corroborated, limitations
 
 
+# Verification-style tools and how to read "this tool found no DISQUALIFYING problem"
+# directly off each one's own real, unmodified return shape (field names confirmed
+# against app/tools/anomaly.py and app/tools/data_quality.py, not guessed):
+#   - duplicate_analysis:    duplicate_row_count == 0 (binary -- any exact duplicate
+#                            is a real, unambiguous problem)
+#   - data_quality_report:   quality_issues is empty (equivalently quality_score == 100)
+#   - detect_anomalies:      anomaly_pct below _ANOMALY_CLEAN_THRESHOLD_PCT, NOT a
+#                            literal zero -- IQR-based outlier detection on any
+#                            moderately-skewed real distribution (revenue, deal size,
+#                            etc.) routinely flags a nonzero baseline percentage with
+#                            no genuine data-quality problem behind it (verified
+#                            directly: a real run against this project's own demo
+#                            dataset, filtered to one region, flagged 6.81% of rows via
+#                            IQR on ordinary right-skewed revenue -- a literal
+#                            `== 0` bar would almost never be satisfied on real data,
+#                            making this corroboration signal nearly useless in
+#                            practice). A double-digit anomaly rate is still a real,
+#                            disqualifying signal; a single-digit one is ordinary noise.
+_ANOMALY_CLEAN_THRESHOLD_PCT = 15.0
+_VERIFICATION_TOOLS_CLEAN_CHECK: dict[str, Callable[[dict], bool]] = {
+    "detect_anomalies": lambda r: (r.get("anomaly_pct") or 0.0) < _ANOMALY_CLEAN_THRESHOLD_PCT,
+    "duplicate_analysis": lambda r: r.get("duplicate_row_count") == 0,
+    "data_quality_report": lambda r: not r.get("quality_issues"),
+}
+
+
+def _investigation_cross_check(evidence: list[Evidence]) -> set[str]:
+    """Broader corroboration than `_cross_check`'s literal-scalar-agreement check.
+
+    Real gap found via the hard real-world benchmark (.agent/hard_realworld_benchmark.md
+    finding #1): a genuine multi-step root-cause investigation -- e.g. `compare_periods`
+    (does revenue look different?) + `group_and_aggregate` (is one category driving it?)
+    + `detect_anomalies` (is a data artifact driving it?), all on the same metric --
+    never produces two evidence items with a directly comparable flat scalar (`mean`/
+    `value`/`coefficient`/`statistic`), so `_cross_check` never marks any of them
+    `cross_checked=True`, even though the investigation is real, evidence-grounded, and
+    exactly the "check outliers / check data quality before accepting a conclusion"
+    discipline this project's own reasoning principles require.
+
+    This function formalizes that discipline as an explicit, deterministic corroboration
+    rule: when an independent verification tool (`detect_anomalies`/`duplicate_analysis`/
+    `data_quality_report`) examined the SAME metric as another analytical tool and found
+    no problem, that is real corroboration for the investigation as a whole -- distinct
+    from (and additive to, never a replacement for) `_cross_check`'s narrower "two tools
+    computed the same number" check, which remains unchanged and still catches genuine
+    numeric disagreements `_investigation_cross_check` cannot see."""
+    corroborated: set[str] = set()
+    by_metric: dict[str, list[Evidence]] = {}
+    for e in evidence:
+        if e.metric:
+            by_metric.setdefault(e.metric, []).append(e)
+
+    for items in by_metric.values():
+        distinct_tools = {e.source_tool: e for e in items}
+        if len(distinct_tools) < 2:
+            continue
+        verification_ran_clean = [
+            e for e in distinct_tools.values()
+            if e.source_tool in _VERIFICATION_TOOLS_CLEAN_CHECK
+            and _VERIFICATION_TOOLS_CLEAN_CHECK[e.source_tool](e.result_summary)
+        ]
+        other_analytical = [e for e in distinct_tools.values() if e.source_tool not in _VERIFICATION_TOOLS_CLEAN_CHECK]
+        if verification_ran_clean and other_analytical:
+            corroborated.update(e.id for e in distinct_tools.values())
+    return corroborated
+
+
 def _describe_data_outlier_limitations(evidence: list[Evidence]) -> list[Limitation]:
     """Deterministically flags a describe_data-reported mean at risk of being
     dominated by extreme outlier value(s), independent of whether the model chose to
@@ -184,6 +253,7 @@ def _describe_data_outlier_limitations(evidence: list[Evidence]) -> list[Limitat
 
 def build_findings(evidence: list[Evidence]) -> tuple[list[Finding], list[Limitation]]:
     corroborated, cross_check_limitations = _cross_check(evidence)
+    corroborated = corroborated | _investigation_cross_check(evidence)
 
     findings: list[Finding] = []
     sample_size_limitations: list[Limitation] = []

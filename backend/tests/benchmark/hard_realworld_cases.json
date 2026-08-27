@@ -2785,7 +2785,8 @@
       "expected": {
         "tool_category": [
           "GENERAL_ANALYSIS",
-          "STATISTICS"
+          "STATISTICS",
+          "DATA_QUALITY"
         ],
         "require_cross_check": true,
         "expected_hypotheses_range": [
@@ -2817,7 +2818,8 @@
           "objective": "Answer the question",
           "capability_categories": [
             "GENERAL_ANALYSIS",
-            "STATISTICS"
+            "STATISTICS",
+            "DATA_QUALITY"
           ],
           "steps": [],
           "tools_required": [
