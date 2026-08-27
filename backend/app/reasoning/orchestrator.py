@@ -118,7 +118,7 @@ class ReasoningOrchestrator:
         # --- deterministic (Phase 4 P0): cap recommendation confidence at what the
         # evidence actually supports -- never trust the LLM's own stated confidence.
         if recommendation is not None:
-            grounding = evaluate_recommendation_grounding(recommendation, findings, evidence, hypotheses)
+            grounding = evaluate_recommendation_grounding(recommendation, findings, evidence, hypotheses, limitations)
             if grounding.violations:
                 trace.append(f"recommendation grounding violations: {grounding.violations}")
             if grounding.adjusted_confidence != recommendation.confidence:

@@ -10,7 +10,7 @@ rule directly, tier by tier, plus the four required examples from the task spec.
 
 from __future__ import annotations
 
-from app.reasoning.contracts import Evidence, Finding, Hypothesis, Recommendation
+from app.reasoning.contracts import Evidence, Finding, Hypothesis, Limitation, Recommendation
 from app.reasoning.recommendation_grounding import evaluate_recommendation_grounding
 
 # --- 1. Weak correlation backing a causal, high-confidence recommendation ----------
@@ -332,3 +332,97 @@ def test_adjusted_confidence_is_unchanged_when_original_confidence_is_already_wi
     assert report.recommended_confidence_ceiling == "high"
     assert report.adjusted_confidence == "medium"  # unchanged, not bumped up
     assert report.violations == []
+
+
+# --- blocks_conclusion limitations override even strong evidence -------------------
+#
+# Real gap found via a systematic professional-analyst-workflow gap audit:
+# Limitation.severity == "blocks_conclusion" was being SET in four places
+# (premise_validator.py, numerical_sanity.py, confound_detection.py,
+# orchestrator.py's own capability-unavailable path) but never actually CHECKED
+# anywhere -- it reached the synthesizer's prompt as plain text and relied entirely
+# on the LLM noticing and hedging, with zero deterministic enforcement. These tests
+# lock in the fix: a blocks_conclusion limitation must force adjusted_confidence to
+# None regardless of how strong the resolved evidence otherwise is.
+
+
+def _strong_evidence_and_recommendation():
+    evidence = [
+        Evidence(
+            id="ev_0",
+            source_tool="linear_regression",
+            evidence_type="STATISTICAL_RESULT",
+            metric="revenue",
+            result_summary={
+                "n_observations": 150,
+                "r_squared": 0.55,
+                "significant_features": ["ad_spend"],
+                "f_p_value": 0.0001,
+                "alpha": 0.05,
+            },
+            sample_size=150,
+            tool_call_ref="tool_call[0]",
+        ),
+    ]
+    findings = [
+        Finding(id="finding_0", statement="Ad spend is a significant, well-powered predictor of revenue.", classification="STATISTICAL_RESULT", supporting_evidence=["ev_0"]),
+    ]
+    recommendation = Recommendation(
+        recommendation="Prioritize ad_spend in the next campaign.",
+        supporting_findings=["finding_0"],
+        confidence="high",
+    )
+    return recommendation, findings, evidence
+
+
+def test_blocks_conclusion_limitation_overrides_even_strong_evidence():
+    recommendation, findings, evidence = _strong_evidence_and_recommendation()
+    limitations = [
+        Limitation(category="methodological", text="columns are too linearly dependent for a stable analysis", severity="blocks_conclusion"),
+    ]
+
+    report = evaluate_recommendation_grounding(recommendation, findings, evidence, hypotheses=[], limitations=limitations)
+
+    assert report.evidence_strength == "strong"  # the evidence itself is unaffected
+    assert report.adjusted_confidence is None  # but no confidence claim survives
+    assert any("blocks_conclusion" in v for v in report.violations)
+
+
+def test_reduces_confidence_severity_limitation_does_not_trigger_the_override():
+    """Only 'blocks_conclusion' forces a null confidence -- 'reduces_confidence' and
+    'minor' limitations are exactly what the existing evidence-strength ceiling
+    already accounts for; this override must not be overly broad."""
+    recommendation, findings, evidence = _strong_evidence_and_recommendation()
+    limitations = [
+        Limitation(category="sample_size", text="based on a modest sample", severity="reduces_confidence"),
+    ]
+
+    report = evaluate_recommendation_grounding(recommendation, findings, evidence, hypotheses=[], limitations=limitations)
+
+    assert report.adjusted_confidence == "high"
+
+
+def test_no_limitations_argument_at_all_preserves_prior_behavior():
+    """Backward compatibility: every pre-existing call site (and the many tests above
+    that predate this parameter) omits `limitations` entirely -- must behave exactly
+    as before, never invent a violation from an absent argument."""
+    recommendation, findings, evidence = _strong_evidence_and_recommendation()
+    report = evaluate_recommendation_grounding(recommendation, findings, evidence, hypotheses=[])
+    assert report.adjusted_confidence == "high"
+    assert report.violations == []
+
+
+def test_blocks_conclusion_limitation_with_no_affected_findings_link_still_applies():
+    """Several real sources of a blocks_conclusion limitation (premise_validator's
+    scale/time-range mismatches) fire before any Finding exists to attach
+    affected_findings to -- the override must be global, not scoped to the
+    recommendation's own cited findings, or it would silently miss exactly the cases
+    it exists to catch."""
+    recommendation, findings, evidence = _strong_evidence_and_recommendation()
+    limitations = [
+        Limitation(category="insufficient_coverage", text="claimed 10 million rows but the dataset has 4,000", severity="blocks_conclusion", affected_findings=[]),
+    ]
+
+    report = evaluate_recommendation_grounding(recommendation, findings, evidence, hypotheses=[], limitations=limitations)
+
+    assert report.adjusted_confidence is None

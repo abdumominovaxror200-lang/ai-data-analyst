@@ -4,6 +4,30 @@ Written per the explicit mission requirement for an honest, evidence-based final
 audit. Every number below was measured this session (or in the immediately preceding
 session continued from), not estimated. Git HEAD at time of writing: `d3a9ae9`.
 
+## 0. Update since this audit was first written (same day)
+
+A systematic professional-analyst-workflow gap audit (checking whether the system
+"downgrades/hedges/refuses instead of forcing the answer" when a deterministic check
+fails) found a real, general architectural gap: `Limitation.severity ==
+"blocks_conclusion"` was being **set** in four places
+(`premise_validator.py`/`numerical_sanity.py`/`confound_detection.py`/
+`orchestrator.py`) but **never checked** anywhere — it reached the synthesizer's
+prompt as plain text and relied entirely on the LLM noticing and hedging, with zero
+deterministic enforcement of confidence downgrading. Fixed:
+`evaluate_recommendation_grounding` now accepts the full `limitations` list and
+forces `adjusted_confidence = None` whenever any `blocks_conclusion` limitation is
+present, regardless of how strong the resolved evidence otherwise is (verified with a
+"strong" evidence case exactly like the module's own positive-control test, plus
+regression tests confirming `reduces_confidence`/`minor` severities do NOT trigger
+this override, backward compatibility for every pre-existing call site, and that a
+blocking limitation with no `affected_findings` link — as `premise_validator`'s
+scale-mismatch limitations always are, since they fire before any Finding exists —
+still applies). 4 new tests in the existing `tests/reasoning/test_recommendation_grounding.py`
+(a dedicated unit-test file for this module already existed; an earlier version of
+this audit incorrectly stated no such file existed for `recommendation_grounding.py`
+— corrected here). Full regression: 974 passed, 74 skipped, 0 failed. All 3 benchmark
+suites unchanged (hard 97.1%, final_100 99.0%, professional 100.0%) — purely additive.
+
 ## 1. Current architecture
 
 Two API surfaces over the same 39 deterministic tools:

@@ -115,7 +115,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.reasoning.causation_guard import find_causal_phrases
-from app.reasoning.contracts import Evidence, Finding, Hypothesis, Recommendation
+from app.reasoning.contracts import Evidence, Finding, Hypothesis, Limitation, Recommendation
 from app.reasoning.verifier import _LOW_SAMPLE_SIZE_THRESHOLD as LOW_SAMPLE_SIZE_THRESHOLD
 
 # "strong" requires materially more than "not tiny" -- see rule 4 in the module
@@ -307,14 +307,34 @@ def evaluate_recommendation_grounding(
     findings: list[Finding],
     evidence: list[Evidence],
     hypotheses: list[Hypothesis],
+    limitations: list[Limitation] | None = None,
 ) -> RecommendationGroundingReport:
     """Checks whether `recommendation.confidence` is actually justified by the
     evidence backing it. Never raises -- safe to call on any real pipeline output,
     including `recommendation.supporting_findings == []`.
 
+    `limitations` (optional, defaults to none -- existing callers/tests that predate
+    this parameter are unaffected): real gap found via a systematic gap audit against
+    a professional-analyst-workflow checklist requiring deterministic conclusions to
+    be downgraded/hedged/refused when a check fails, "instead of relying only on LLM
+    instructions." `Limitation.severity == "blocks_conclusion"` was being SET in four
+    different places (`premise_validator.py`, `numerical_sanity.py`,
+    `confound_detection.py`, `orchestrator.py`'s own capability-unavailable path) but
+    never actually CHECKED anywhere -- it reached the synthesizer's prompt as text
+    (`[category/severity] text`) and relied entirely on the LLM noticing and hedging
+    accordingly, with zero deterministic enforcement. If ANY limitation in this list
+    has `severity == "blocks_conclusion"`, no confidence claim is justified
+    regardless of how strong the resolved evidence otherwise looks -- a
+    blocks_conclusion limitation is checked globally (not scoped to the
+    recommendation's own cited findings) because several real sources of one
+    (`premise_validator`'s scale/time-range mismatches) fire before any Finding
+    exists to attach `affected_findings` to, so scoping this check to only
+    per-finding limitations would silently miss exactly the cases it exists to catch.
+
     See the module docstring for the exact evidence-strength rule and every
     threshold used here.
     """
+    blocking_limitations = [l for l in (limitations or []) if l.severity == "blocks_conclusion"]
     resolved_evidence = _resolve_evidence(recommendation, findings, evidence)
 
     violations: list[str] = []
@@ -390,6 +410,14 @@ def evaluate_recommendation_grounding(
                 f"ceiling '{ceiling}'"
             )
             adjusted_confidence = ceiling
+
+    if blocking_limitations and adjusted_confidence is not None:
+        violations.append(
+            f"{len(blocking_limitations)} blocks_conclusion-severity limitation(s) present "
+            f"({'; '.join(l.text for l in blocking_limitations)}) -- no confidence claim is "
+            "justified regardless of evidence strength"
+        )
+        adjusted_confidence = None
 
     return RecommendationGroundingReport(
         evidence_strength=evidence_strength,
