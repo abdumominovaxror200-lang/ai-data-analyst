@@ -275,3 +275,56 @@ def test_effect_size_unknown_group_value_raises():
     df = pd.DataFrame({"score": [10, 11, 12, 20, 21, 22], "group": ["A", "A", "A", "B", "B", "B"]})
     with pytest.raises(ToolExecutionError):
         effect_size(df, column="score", group_column="group", group_a="A", group_b="nope")
+
+
+# ---------------------------------------------------------------------------
+# extreme-magnitude overflow guard (final stress-test mission, Phase 2 #38/#39):
+# real numerical-correctness bug -- squaring ~1e300-scale values for a variance
+# calculation overflows to infinity, and scipy silently returns statistic=0.0,
+# p_value=1.0 (a confident "no difference" verdict caused by float overflow, not a
+# real absence of a difference) instead of raising. Verified directly: without the
+# guard, np.var on this data returns inf and ttest_1samp still returns a clean-looking
+# (but wrong) result.
+# ---------------------------------------------------------------------------
+
+_HUGE = [1e300, 2e300, 1.5e300, 3e300, 2.5e300, 1.8e300] * 3
+
+
+def test_t_test_one_sample_raises_on_extreme_magnitude_overflow():
+    df = pd.DataFrame({"x": _HUGE})
+    with pytest.raises(ToolExecutionError, match="overflows to infinity"):
+        t_test(df, column="x", popmean=1e300)
+
+
+def test_t_test_two_sample_raises_on_extreme_magnitude_overflow():
+    df = pd.DataFrame({"x": _HUGE, "g": ["A"] * 9 + ["B"] * 9})
+    with pytest.raises(ToolExecutionError, match="overflows to infinity"):
+        t_test(df, column="x", group_column="g", group_a="A", group_b="B")
+
+
+def test_anova_raises_on_extreme_magnitude_overflow():
+    df = pd.DataFrame({"x": _HUGE, "g": ["A"] * 6 + ["B"] * 6 + ["C"] * 6})
+    with pytest.raises(ToolExecutionError, match="overflows to infinity"):
+        anova_test(df, value_column="x", group_column="g")
+
+
+def test_confidence_interval_raises_on_extreme_magnitude_overflow():
+    df = pd.DataFrame({"x": _HUGE})
+    with pytest.raises(ToolExecutionError, match="overflows to infinity"):
+        confidence_interval(df, column="x")
+
+
+def test_effect_size_raises_on_extreme_magnitude_overflow():
+    df = pd.DataFrame({"x": _HUGE, "g": ["A"] * 9 + ["B"] * 9})
+    with pytest.raises(ToolExecutionError, match="overflows to infinity"):
+        effect_size(df, column="x", group_column="g", group_a="A", group_b="B")
+
+
+def test_moderately_large_but_finite_values_are_unaffected():
+    """Guards against the guard itself being overzealous -- ordinary large business
+    numbers (e.g. enterprise revenue in the billions) must not trip this."""
+    import numpy as np
+
+    df = pd.DataFrame({"x": np.random.default_rng(1).normal(5_000_000_000, 500_000_000, 40)})
+    result = t_test(df, column="x", popmean=4_800_000_000)
+    assert result["p_value"] is not None

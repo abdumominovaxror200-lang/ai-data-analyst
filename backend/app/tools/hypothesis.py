@@ -10,6 +10,34 @@ from app.tools.filtering import apply_filters
 _MIN_GROUP_SIZE = 2
 
 
+def _ensure_finite_variance(*samples: pd.Series) -> None:
+    """Guards against a real numerical-correctness bug, not just a cosmetic warning:
+    when values are extreme enough in magnitude that squaring them for a variance
+    calculation overflows to infinity, scipy/numpy silently produce a plausible-
+    looking but WRONG result rather than raising -- e.g. a one-sample t-test against
+    ~1e300-scale data returns `statistic=0.0, p_value=1.0` (a confident "no
+    difference" verdict caused entirely by floating-point overflow in the variance
+    term, not a real absence of a difference; verified directly: `np.var` on such
+    values returns `inf`, and `scipy.stats.ttest_1samp` does not itself check for
+    this). Mirrors the same "detect corruption upfront rather than let it silently
+    propagate" discipline as `regression_diagnostics.py`'s Mahalanobis
+    condition-number guard -- found via the same kind of direct verification against
+    real (here, synthetic extreme-magnitude) data, not assumed from reading scipy's
+    docs."""
+    for sample in samples:
+        if len(sample) < 2:
+            continue
+        variance = float(np.var(sample.to_numpy(dtype=float), ddof=1))
+        if not np.isfinite(variance):
+            raise ToolExecutionError(
+                "Cannot compute a reliable result: these values are extreme enough in "
+                "magnitude that the variance calculation overflows to infinity. This "
+                "usually indicates a units/scale problem in the data (e.g. the wrong "
+                "column, or a currency stored in the wrong denomination) rather than a "
+                "real business figure."
+            )
+
+
 def t_test(
     df: pd.DataFrame,
     column: str,
@@ -46,6 +74,7 @@ def t_test(
                 f"Each group needs at least {_MIN_GROUP_SIZE} samples for a t-test "
                 f"(group_a n={len(sample_a)}, group_b n={len(sample_b)})."
             )
+        _ensure_finite_variance(sample_a, sample_b)
 
         statistic, p_value = stats.ttest_ind(sample_a, sample_b, equal_var=False)
         dof = _welch_dof(sample_a, sample_b)
@@ -68,6 +97,7 @@ def t_test(
         )
     if len(series) < _MIN_GROUP_SIZE:
         raise ToolExecutionError(f"At least {_MIN_GROUP_SIZE} samples are required for a t-test (found {len(series)}).")
+    _ensure_finite_variance(series)
 
     statistic, p_value = stats.ttest_1samp(series, popmean)
     return {
@@ -163,6 +193,7 @@ def anova_test(
         samples.append(sample)
         group_stats[str(name)] = {"n": int(len(sample)), "mean": _round(sample.mean())}
 
+    _ensure_finite_variance(*samples)
     statistic, p_value = stats.f_oneway(*samples)
     return {
         "test": "one_way_anova",
@@ -193,6 +224,7 @@ def confidence_interval(
     n = len(series)
     if n < _MIN_GROUP_SIZE:
         raise ToolExecutionError(f"At least {_MIN_GROUP_SIZE} samples are required for a confidence interval (found {n}).")
+    _ensure_finite_variance(series)
 
     mean = float(series.mean())
     sem = float(stats.sem(series))
@@ -242,6 +274,7 @@ def effect_size(
             f"Each group needs at least {_MIN_GROUP_SIZE} samples to compute an effect size "
             f"(group_a n={len(sample_a)}, group_b n={len(sample_b)})."
         )
+    _ensure_finite_variance(sample_a, sample_b)
 
     n1, n2 = len(sample_a), len(sample_b)
     var1, var2 = sample_a.var(ddof=1), sample_b.var(ddof=1)
