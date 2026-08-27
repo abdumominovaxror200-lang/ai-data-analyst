@@ -472,3 +472,17 @@ reported group values are always plain strings even when the grouped column itse
 datetime/numeric — a real pandas `FutureWarning` surfaced during this fix and is now
 covered by its own warning-as-error regression test). Final: 965 passed, 74 skipped, 0
 failed, 0 regressions, no false positive on the real primary dataset.
+
+**Second follow-up fix**: stress-testing the guard's own presence threshold with a
+synthetic 3-way group comparison (each of 3 regions dominated by one store format,
+with an even more extreme minority presence than the real fixture — 18-vs-1-vs-1
+rather than 18-vs-2) found the ORIGINAL count-based presence floor
+(`_MIN_PRESENCE_COUNT = 2`) itself breaks down at the extremes: a genuine confound
+with a minority presence of just 1 row per group falls below any count floor greater
+than 1, silently misclassifying it as "nested" and skipping it — the opposite failure
+mode from the false positive just fixed. Replaced with a fraction-based presence
+check (`_MIN_PRESENCE_FRACTION = 0.03` — a value must be ≥3% of a group's rows to
+count as real presence, not noise), verified correct at both the original 18-vs-2
+scale and the more extreme 18-vs-1-vs-1 scale, and still correctly excluding the
+genuinely 0%-overlap product/category relationship. 1 more regression test (13
+total). Final: 966 passed, 74 skipped, 0 failed, 0 regressions.

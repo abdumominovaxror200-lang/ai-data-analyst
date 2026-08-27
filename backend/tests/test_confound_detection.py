@@ -199,6 +199,30 @@ def test_datetime_group_column_does_not_raise_or_warn():
     assert any("channel" in l.text for l in limitations)
 
 
+def test_a_three_way_confound_with_extreme_per_group_skew_is_still_flagged():
+    """Real bug found via direct testing: an 18/1/1-style three-way split (each
+    format value overwhelmingly concentrated in ONE of three regions, with only 1
+    minority row in each of the other two) has a minority presence of just 1 row per
+    group -- below any absolute-count presence floor greater than 1, which
+    previously caused this genuine confound to be misclassified as 'nested' and
+    silently skipped. A fraction-based presence check (>=3% of a group's rows)
+    correctly recognizes the minority rows as real presence, not noise, and still
+    flags the confound."""
+    rng = np.random.default_rng(7)
+    rows = []
+    for region, fmt in [("North", "large"), ("South", "small"), ("East", "medium")]:
+        for _ in range(18):
+            rows.append({"region": region, "format": fmt, "revenue": rng.normal(150, 10)})
+        for other_fmt in [f for f in ("large", "small", "medium") if f != fmt]:
+            rows.append({"region": region, "format": other_fmt, "revenue": rng.normal(100, 10)})
+    df = pd.DataFrame(rows)
+    evidence = [_ev("ev_0", "group_and_aggregate", "revenue", {
+        "group_by": "region", "groups": [{"group": "North", "value": 1}, {"group": "South", "value": 2}, {"group": "East", "value": 3}],
+    })]
+    limitations = detect_confounds(df, evidence)
+    assert any("format" in l.text for l in limitations)
+
+
 def test_deduplicates_repeated_comparisons_of_the_same_groups():
     df = _confounded_df()
     evidence = [

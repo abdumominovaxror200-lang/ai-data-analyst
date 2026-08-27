@@ -44,7 +44,16 @@ _MIN_CATEGORY_LEVELS = 2
 _MAX_CATEGORY_LEVELS = 20  # avoid scanning near-unique/ID-like columns as "categorical"
 _CONFOUND_PROPORTION_GAP_THRESHOLD = 0.40  # a 40-point swing in a category's share is not noise
 _MIN_SHARED_VALUE_FRACTION = 0.3  # see _is_nested_not_confounded's docstring
-_MIN_PRESENCE_COUNT = 2  # a value must appear this many times in a group to "be present" there
+# A value must make up at least this FRACTION of a group's rows to count as "really
+# present" there (not a stray/noise row) -- a fraction, not an absolute count, because
+# an absolute-count floor breaks down at the extremes: it correctly separates an
+# 18-vs-2-split confound (region_size_confound) from a truly nested relationship
+# (product/category, 0% overlap) only by accident of matching group sizes. A more
+# extreme but still genuine confound (e.g. an 18/1/1 three-way split) has a minority
+# presence of just 1 row per group, which falls below any count-based floor above 1 --
+# found as a real bug via direct testing (see test_confound_detection.py's 3-group
+# regression test) before this fraction-based version replaced it.
+_MIN_PRESENCE_FRACTION = 0.03
 
 
 def _extract_comparison(result_summary: dict) -> tuple[str | None, list]:
@@ -93,8 +102,9 @@ def _is_nested_not_confounded(df: pd.DataFrame, group_col: str, group_values: li
 
     Returns True (skip -- not a real confound) when fewer than
     `_MIN_SHARED_VALUE_FRACTION` of `other_col`'s distinct values present in this
-    comparison actually appear (with a minimum real presence, not a stray row) in
-    more than one of the compared groups.
+    comparison actually appear (at real presence -- at least `_MIN_PRESENCE_FRACTION`
+    of that group's rows, not a stray/noise row) in more than one of the compared
+    groups.
 
     Compares `group_col` as strings throughout (rather than `.isin`/`==` against the
     column's native dtype) -- a tool's own reported group labels (e.g.
@@ -108,9 +118,12 @@ def _is_nested_not_confounded(df: pd.DataFrame, group_col: str, group_values: li
     subset_group_str = group_col_as_str[group_col_as_str.isin(group_values_str)]
     presence: dict = {}
     for gv in group_values_str:
-        counts = subset.loc[subset_group_str == gv, other_col].value_counts()
-        for value, count in counts.items():
-            if count >= _MIN_PRESENCE_COUNT:
+        group_rows = subset.loc[subset_group_str == gv, other_col]
+        group_size = len(group_rows)
+        if group_size == 0:
+            continue
+        for value, count in group_rows.value_counts().items():
+            if (count / group_size) >= _MIN_PRESENCE_FRACTION:
                 presence.setdefault(value, set()).add(gv)
 
     if not presence:
