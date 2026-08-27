@@ -81,6 +81,23 @@ def test_two_tools_reporting_materially_different_values_are_flagged_not_corrobo
     assert any("disagree" in l.text.lower() for l in limitations)
 
 
+def test_a_test_statistic_is_never_compared_against_an_actual_value():
+    """Real bug found via a real (unscripted) LLM run (final stress-test mission,
+    Phase 8): a two-sample t_test result has no top-level "mean" (only nested inside
+    group_a/group_b), so _numeric_point fell back to "statistic" (7.1, the
+    t-statistic) and compared it against confidence_interval's "mean" ($143.0) as if
+    they were the same kind of number -- a confusing, incorrect "disagreement"
+    limitation. A test statistic is not a value estimate of the metric and must
+    never be cross-checked against one."""
+    evidence = [
+        _ev("ev_0", "t_test", "avg_basket", {"statistic": 7.1075, "p_value": 0.0}, evidence_type="STATISTICAL_RESULT"),
+        _ev("ev_1", "confidence_interval", "avg_basket", {"mean": 143.0145}, evidence_type="STATISTICAL_RESULT"),
+    ]
+    findings, limitations = build_findings(evidence)
+    assert not any("disagree" in l.text.lower() for l in limitations)
+    assert not any(f.cross_checked for f in findings)
+
+
 def test_single_tool_alone_is_never_cross_checked():
     evidence = [_ev("ev_0", "describe_data", "revenue", {"mean": 100.0})]
     findings, _ = build_findings(evidence)

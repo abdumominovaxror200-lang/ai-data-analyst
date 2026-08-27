@@ -100,8 +100,17 @@ def _statement_for(evidence: Evidence) -> str:
 
 
 def _numeric_point(evidence: Evidence) -> float | None:
+    """Reads a tool's point ESTIMATE of the metric's actual value -- deliberately
+    excludes "statistic" (a test statistic like a t-value or F-value), which is not
+    a value of the metric at all and is not on a comparable scale across different
+    tools/tests. Found as a real bug via a real (unscripted) LLM run: a two-sample
+    t_test call (no top-level "mean", only "statistic") and a confidence_interval
+    call on the same metric got flagged as "disagreeing" because 7.1 (the
+    t-statistic) was compared against $143 (the actual mean) as if they were the
+    same kind of number -- a confusing, incorrect cross-check false positive, not a
+    real disagreement."""
     r = evidence.result_summary
-    for key in ("mean", "value", "coefficient", "statistic"):
+    for key in ("mean", "value", "coefficient"):
         v = r.get(key)
         if isinstance(v, (int, float)) and not isinstance(v, bool):
             return float(v)
