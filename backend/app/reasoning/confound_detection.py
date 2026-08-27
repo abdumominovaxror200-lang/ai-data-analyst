@@ -44,6 +44,14 @@ _MIN_CATEGORY_LEVELS = 2
 _MAX_CATEGORY_LEVELS = 20  # avoid scanning near-unique/ID-like columns as "categorical"
 _CONFOUND_PROPORTION_GAP_THRESHOLD = 0.40  # a 40-point swing in a category's share is not noise
 _MIN_SHARED_VALUE_FRACTION = 0.3  # see _is_nested_not_confounded's docstring
+# A gap this large (e.g. a 90%-vs-10% split, like the real region_size_confound
+# fixture) is severe enough that a comparison along `group_col` is barely
+# distinguishable from a comparison along `other_col` -- treated as `blocks_conclusion`
+# severity (no confidence claim is justified at all, see recommendation_grounding.py's
+# global blocks_conclusion override) rather than merely `reduces_confidence`. A more
+# moderate gap between this and `_CONFOUND_PROPORTION_GAP_THRESHOLD` is still real and
+# worth flagging, but not severe enough to say no conclusion is possible at all.
+_SEVERE_CONFOUND_PROPORTION_GAP_THRESHOLD = 0.70
 # A value must make up at least this FRACTION of a group's rows to count as "really
 # present" there (not a stray/noise row) -- a fraction, not an absolute count, because
 # an absolute-count floor breaks down at the extremes: it correctly separates an
@@ -200,6 +208,7 @@ def detect_confounds(df: pd.DataFrame, evidence: list[Evidence]) -> list[Limitat
                 continue
             seen.add(signature)
 
+            severe = gap >= _SEVERE_CONFOUND_PROPORTION_GAP_THRESHOLD
             limitations.append(
                 Limitation(
                     category="methodological",
@@ -208,8 +217,14 @@ def detect_confounds(df: pd.DataFrame, evidence: list[Evidence]) -> list[Limitat
                         f"'{group_col}' groups ({', '.join(str(v) for v in group_values)}) -- "
                         f"this comparison may reflect a difference in '{other_col}' rather than "
                         f"a true '{group_col}' effect (a possible confounding variable)."
+                        + (
+                            f" This split is severe (a {round(gap * 100)}-point gap) -- the two "
+                            f"variables are barely distinguishable in this data, so no confident "
+                            f"conclusion about '{group_col}' alone is possible here."
+                            if severe else ""
+                        )
                     ),
-                    severity="reduces_confidence",
+                    severity="blocks_conclusion" if severe else "reduces_confidence",
                     affected_findings=[f"finding_{i}"],
                 )
             )

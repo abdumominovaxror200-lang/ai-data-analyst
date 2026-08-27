@@ -65,6 +65,46 @@ def test_flags_a_real_confound_from_a_t_test_comparison():
     assert limitations[0].category == "methodological"
 
 
+def test_severe_confound_gets_blocks_conclusion_severity():
+    """_confounded_df() has an 80-point gap (90% large in North, 10% large in South)
+    -- above _SEVERE_CONFOUND_PROPORTION_GAP_THRESHOLD (0.70). Severity must escalate
+    to blocks_conclusion so recommendation_grounding.py's global override actually
+    applies (see test_blocks_conclusion_enforcement.py for the full end-to-end
+    verification this unit-level check backs up)."""
+    df = _confounded_df()
+    evidence = [_ev("ev_0", "t_test", "avg_basket", {
+        "group_column": "region", "group_a": {"label": "North", "n": 20}, "group_b": {"label": "South", "n": 20},
+    })]
+    limitations = detect_confounds(df, evidence)
+    format_limitation = next(l for l in limitations if "format" in l.text)
+    assert format_limitation.severity == "blocks_conclusion"
+    assert "severe" in format_limitation.text.lower()
+
+
+def test_moderate_confound_stays_at_reduces_confidence_severity():
+    """A real but more moderate gap (below the severe threshold, above the base
+    detection threshold) should NOT be escalated -- only genuinely severe splits earn
+    blocks_conclusion. 55%-vs-15% is a 40-point gap, real and flaggable, but not the
+    near-total 70+ point split the severe escalation is reserved for."""
+    rows = []
+    for _ in range(11):
+        rows.append({"region": "North", "format": "large", "avg_basket": 150.0})
+    for _ in range(9):
+        rows.append({"region": "North", "format": "small", "avg_basket": 70.0})
+    for _ in range(3):
+        rows.append({"region": "South", "format": "large", "avg_basket": 148.0})
+    for _ in range(17):
+        rows.append({"region": "South", "format": "small", "avg_basket": 80.0})
+    df = pd.DataFrame(rows)
+    evidence = [_ev("ev_0", "t_test", "avg_basket", {
+        "group_column": "region", "group_a": {"label": "North", "n": 20}, "group_b": {"label": "South", "n": 20},
+    })]
+    limitations = detect_confounds(df, evidence)
+    format_limitation = next(l for l in limitations if "format" in l.text)
+    assert format_limitation.severity == "reduces_confidence"
+    assert "severe" not in format_limitation.text.lower()
+
+
 def test_no_confound_flagged_when_the_other_variable_is_evenly_split():
     df = _unconfounded_df()
     evidence = [
