@@ -1,0 +1,858 @@
+{
+  "total_cases": 102,
+  "passed": 98,
+  "partial": 4,
+  "failed": 0,
+  "unmeasured": 0,
+  "provider_failures": 0,
+  "overall_score_pct": 96.1,
+  "category_scores_pct": {
+    "duplicate_transactions": 100.0,
+    "currency_unit_mismatch": 100.0,
+    "impossible_values": 100.0,
+    "customer_id_inconsistency": 100.0,
+    "churn_definition_ambiguity": 100.0,
+    "revenue_recognition_annual": 100.0,
+    "seasonality_vs_trend": 100.0,
+    "cancelled_customer_value": 100.0,
+    "ab_test_imbalance_honest": 100.0,
+    "ab_test_imbalance_overclaim": 0.0,
+    "multiple_comparisons_honest": 100.0,
+    "multiple_comparisons_overclaim": 100.0,
+    "regression_to_mean_honest": 100.0,
+    "regression_to_mean_overclaim": 0.0,
+    "simpsons_paradox_honest": 100.0,
+    "simpsons_paradox_overclaim": 0.0,
+    "selection_bias_survey": 100.0,
+    "survivorship_bias_retention": 100.0,
+    "mean_vs_median_heavy_tail": 100.0,
+    "multicollinearity_attribution": 100.0,
+    "structural_break_forecast": 100.0,
+    "insufficient_history_volatile": 100.0,
+    "rfm_small_n_instability": 100.0,
+    "zero_inflated_average_usage": 100.0,
+    "units_mismatch_cents_dollars": 100.0,
+    "revenue_recognition_refund_timing": 100.0,
+    "timezone_boundary_misattribution": 100.0,
+    "partial_month_comparison": 100.0,
+    "category_rename_collapse": 100.0,
+    "impossible_conversion_rate": 100.0,
+    "scale_aware_aggregation": 100.0,
+    "scale_aware_filtering": 100.0,
+    "naive_memory_risk_awareness": 100.0,
+    "sampling_appropriateness": 100.0,
+    "ambiguous_best_customers": 100.0,
+    "ambiguous_underperforming_region": 100.0,
+    "insufficient_data_churn_prediction": 100.0,
+    "causal_marketing_budget_recommendation": 100.0,
+    "causal_marketing_budget_overclaim": 100.0,
+    "discontinue_product_recommendation": 100.0,
+    "discontinue_product_overclaim": 100.0,
+    "multi_step_root_cause_revenue_decline": 0.0,
+    "salary_style_outlier_crosscheck": 100.0,
+    "practical_vs_statistical_significance": 100.0,
+    "underspecified_expand_question": 100.0,
+    "causal_justified_case": 100.0,
+    "insufficient_data_ab_test_no_control": 100.0,
+    "reverse_causality_churn": 100.0,
+    "spurious_cooccurrence_shipping": 100.0,
+    "simultaneous_interventions": 100.0,
+    "returns_category_causation_honest": 100.0,
+    "returns_category_causation_overclaim": 100.0,
+    "salesperson_account_size_reverse_honest": 100.0,
+    "salesperson_account_size_reverse_overclaim": 100.0,
+    "store_format_closure_recommendation": 100.0,
+    "rfm_targeting_recommendation": 100.0,
+    "pricing_rollout_recommendation": 100.0,
+    "survey_program_discontinuation": 100.0,
+    "budget_reallocation_recommendation": 100.0,
+    "would_this_crash_at_10m": 100.0,
+    "pairwise_distance_memory_blowup": 100.0,
+    "sql_vs_pandas_explicit": 100.0,
+    "significance_at_large_n": 100.0,
+    "clustering_at_scale": 100.0,
+    "chunked_reading_awareness": 100.0,
+    "many_to_many_join_inflation": 100.0,
+    "hr_negative_tenure": 100.0,
+    "hr_duplicate_employee_records": 100.0,
+    "hr_salary_outlier_real_not_error": 100.0,
+    "ambiguous_best_product": 100.0,
+    "ambiguous_performance_decline": 100.0,
+    "insufficient_data_customer_segments_no_labels": 100.0,
+    "small_sample_regional_ttest": 100.0,
+    "duplicate_row_detection_primary": 100.0,
+    "multi_step_segment_and_compare": 100.0,
+    "multi_step_outlier_then_segment_compare": 100.0,
+    "underspecified_expand_regions": 100.0,
+    "conflicting_metrics_reconciliation": 100.0,
+    "correlation_vs_causation_general_knowledge": 100.0,
+    "correlation_vs_causation_general_knowledge_overclaim": 100.0,
+    "small_sample_new_product": 100.0,
+    "reconcile_revenue_multi_issue": 100.0,
+    "churn_risk_revenue_exposure": 100.0,
+    "ab_test_power_needed": 100.0,
+    "campaign_ranking_with_variance": 100.0,
+    "confound_controlled_comparison": 100.0,
+    "survey_representativeness_check": 100.0,
+    "deal_size_full_picture": 100.0,
+    "multicollinear_model_and_channel_ranking": 100.0,
+    "structural_break_forecast_pipeline": 100.0,
+    "rfm_segment_reliability_check": 100.0,
+    "zero_inflated_adoption_and_engagement": 100.0,
+    "units_fix_and_impact": 100.0,
+    "net_revenue_after_refunds": 100.0,
+    "timezone_corrected_daily_pattern": 100.0,
+    "fair_partial_month_comparison": 100.0,
+    "funnel_walkthrough_with_flag": 100.0,
+    "marketplace_clean_seller_revenue": 100.0,
+    "hr_clean_salary_tenure_by_dept": 100.0,
+    "ambiguous_healthy_business": 100.0,
+    "insufficient_data_supplier_replacement": 100.0,
+    "insufficient_data_ab_no_history": 100.0
+  },
+  "dimension_scores_pct": {
+    "question_understanding": null,
+    "premise_validation": null,
+    "data_quality_awareness": 95.7,
+    "tool_selection": 100.0,
+    "method_selection": 100.0,
+    "numerical_correctness": null,
+    "statistical_correctness": null,
+    "evidence_grounding": 100.0,
+    "uncertainty_calibration": null,
+    "causal_restraint": 100.0,
+    "hypothesis_quality": 100.0,
+    "cross_checking": 0.0,
+    "recommendation_grounding": 100.0,
+    "scalability": 100.0,
+    "communication_quality": 100.0
+  },
+  "most_common_failure_dimensions": {
+    "data_quality_awareness": 3,
+    "cross_checking": 1
+  },
+  "cases": [
+    {
+      "case_id": "hard_ecom_01",
+      "category": "duplicate_transactions",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ecom_02",
+      "category": "currency_unit_mismatch",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ecom_03",
+      "category": "impossible_values",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ecom_04",
+      "category": "customer_id_inconsistency",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_saas_01",
+      "category": "churn_definition_ambiguity",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_saas_02",
+      "category": "revenue_recognition_annual",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_saas_03",
+      "category": "seasonality_vs_trend",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_saas_04",
+      "category": "cancelled_customer_value",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ab_01a",
+      "category": "ab_test_imbalance_honest",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ab_01b",
+      "category": "ab_test_imbalance_overclaim",
+      "verdict": "PARTIAL",
+      "explanation": "Failed: data_quality_awareness (traps not flagged anywhere in answer/claims/limitations/trace: ['sample', 'imbalance', 'power'])",
+      "failed_dimensions": [
+        "data_quality_awareness"
+      ]
+    },
+    {
+      "case_id": "hard_camp_01a",
+      "category": "multiple_comparisons_honest",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_camp_01b",
+      "category": "multiple_comparisons_overclaim",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_price_01a",
+      "category": "regression_to_mean_honest",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_price_01b",
+      "category": "regression_to_mean_overclaim",
+      "verdict": "PARTIAL",
+      "explanation": "Failed: data_quality_awareness (traps not flagged anywhere in answer/claims/limitations/trace: ['unusual'])",
+      "failed_dimensions": [
+        "data_quality_awareness"
+      ]
+    },
+    {
+      "case_id": "hard_confound_01a",
+      "category": "simpsons_paradox_honest",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_confound_01b",
+      "category": "simpsons_paradox_overclaim",
+      "verdict": "PARTIAL",
+      "explanation": "Failed: data_quality_awareness (traps not flagged anywhere in answer/claims/limitations/trace: ['format', 'mix'])",
+      "failed_dimensions": [
+        "data_quality_awareness"
+      ]
+    },
+    {
+      "case_id": "hard_bias_01",
+      "category": "selection_bias_survey",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_bias_02",
+      "category": "survivorship_bias_retention",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_stat_01",
+      "category": "mean_vs_median_heavy_tail",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_stat_02",
+      "category": "multicollinearity_attribution",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_stat_03",
+      "category": "structural_break_forecast",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_stat_04",
+      "category": "insufficient_history_volatile",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_seg_01",
+      "category": "rfm_small_n_instability",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_seg_02",
+      "category": "zero_inflated_average_usage",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fin_01",
+      "category": "units_mismatch_cents_dollars",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fin_02",
+      "category": "revenue_recognition_refund_timing",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_date_01",
+      "category": "timezone_boundary_misattribution",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_date_02",
+      "category": "partial_month_comparison",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_date_03",
+      "category": "category_rename_collapse",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_funnel_01",
+      "category": "impossible_conversion_rate",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_scale_01",
+      "category": "scale_aware_aggregation",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_scale_02",
+      "category": "scale_aware_filtering",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_scale_03",
+      "category": "naive_memory_risk_awareness",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_scale_04",
+      "category": "sampling_appropriateness",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_prim_01",
+      "category": "ambiguous_best_customers",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_prim_02",
+      "category": "ambiguous_underperforming_region",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_prim_03",
+      "category": "insufficient_data_churn_prediction",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_prim_04",
+      "category": "causal_marketing_budget_recommendation",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_prim_04b",
+      "category": "causal_marketing_budget_overclaim",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_prim_05",
+      "category": "discontinue_product_recommendation",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_prim_05b",
+      "category": "discontinue_product_overclaim",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_prim_06",
+      "category": "multi_step_root_cause_revenue_decline",
+      "verdict": "PARTIAL",
+      "explanation": "Failed: cross_checking (no cross-checked finding and no disagreement limitation -- a second, independent verification tool call was expected)",
+      "failed_dimensions": [
+        "cross_checking"
+      ]
+    },
+    {
+      "case_id": "hard_prim_07",
+      "category": "salary_style_outlier_crosscheck",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_prim_08",
+      "category": "practical_vs_statistical_significance",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_prim_09",
+      "category": "underspecified_expand_question",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_prim_10",
+      "category": "causal_justified_case",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_prim_11",
+      "category": "insufficient_data_ab_test_no_control",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_causal_01",
+      "category": "reverse_causality_churn",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_causal_02",
+      "category": "spurious_cooccurrence_shipping",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_causal_03",
+      "category": "simultaneous_interventions",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_causal_04a",
+      "category": "returns_category_causation_honest",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_causal_04b",
+      "category": "returns_category_causation_overclaim",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_causal_05a",
+      "category": "salesperson_account_size_reverse_honest",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_causal_05b",
+      "category": "salesperson_account_size_reverse_overclaim",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_exec_01",
+      "category": "store_format_closure_recommendation",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_exec_02",
+      "category": "rfm_targeting_recommendation",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_exec_03",
+      "category": "pricing_rollout_recommendation",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_exec_04",
+      "category": "survey_program_discontinuation",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_exec_05",
+      "category": "budget_reallocation_recommendation",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_scale_05",
+      "category": "would_this_crash_at_10m",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_scale_06",
+      "category": "pairwise_distance_memory_blowup",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_scale_07",
+      "category": "sql_vs_pandas_explicit",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_scale_08",
+      "category": "significance_at_large_n",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_scale_09",
+      "category": "clustering_at_scale",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_scale_10",
+      "category": "chunked_reading_awareness",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_dq_01",
+      "category": "many_to_many_join_inflation",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_dq_02",
+      "category": "hr_negative_tenure",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_dq_03",
+      "category": "hr_duplicate_employee_records",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_dq_04",
+      "category": "hr_salary_outlier_real_not_error",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_01",
+      "category": "ambiguous_best_product",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_02",
+      "category": "ambiguous_performance_decline",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_03",
+      "category": "insufficient_data_customer_segments_no_labels",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_04",
+      "category": "small_sample_regional_ttest",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_05",
+      "category": "duplicate_row_detection_primary",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_06",
+      "category": "multi_step_segment_and_compare",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_07",
+      "category": "multi_step_outlier_then_segment_compare",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_08",
+      "category": "underspecified_expand_regions",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_09",
+      "category": "conflicting_metrics_reconciliation",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_10",
+      "category": "correlation_vs_causation_general_knowledge",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_10b",
+      "category": "correlation_vs_causation_general_knowledge_overclaim",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_11",
+      "category": "small_sample_new_product",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_01",
+      "category": "reconcile_revenue_multi_issue",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_02",
+      "category": "churn_risk_revenue_exposure",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_03",
+      "category": "ab_test_power_needed",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_04",
+      "category": "campaign_ranking_with_variance",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_05",
+      "category": "confound_controlled_comparison",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_06",
+      "category": "survey_representativeness_check",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_07",
+      "category": "deal_size_full_picture",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_08",
+      "category": "multicollinear_model_and_channel_ranking",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_09",
+      "category": "structural_break_forecast_pipeline",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_10",
+      "category": "rfm_segment_reliability_check",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_11",
+      "category": "zero_inflated_adoption_and_engagement",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_12",
+      "category": "units_fix_and_impact",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_13",
+      "category": "net_revenue_after_refunds",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_14",
+      "category": "timezone_corrected_daily_pattern",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_15",
+      "category": "fair_partial_month_comparison",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_16",
+      "category": "funnel_walkthrough_with_flag",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_17",
+      "category": "marketplace_clean_seller_revenue",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_ms_18",
+      "category": "hr_clean_salary_tenure_by_dept",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_12",
+      "category": "ambiguous_healthy_business",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_13",
+      "category": "insufficient_data_supplier_replacement",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    },
+    {
+      "case_id": "hard_fill_14",
+      "category": "insufficient_data_ab_no_history",
+      "verdict": "PASS",
+      "explanation": "All applicable dimension checks passed.",
+      "failed_dimensions": []
+    }
+  ]
+}
