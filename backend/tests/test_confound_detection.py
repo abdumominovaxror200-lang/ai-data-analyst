@@ -83,9 +83,51 @@ def test_severe_confound_gets_blocks_conclusion_severity():
 
 def test_moderate_confound_stays_at_reduces_confidence_severity():
     """A real but more moderate gap (below the severe threshold, above the base
-    detection threshold) should NOT be escalated -- only genuinely severe splits earn
-    blocks_conclusion. 55%-vs-15% is a 40-point gap, real and flaggable, but not the
-    near-total 70+ point split the severe escalation is reserved for."""
+    detection threshold), where the v2 stratified-effect check (both strata have
+    >= 5 rows per group here, so it CAN run) directly confirms the region comparison
+    points the same direction within every stratum -- should NOT be escalated to
+    blocks_conclusion. 75%-vs-25% is a 50-point distributional gap, real and
+    flaggable, but not the near-total 70+ point split the severe escalation is
+    reserved for, and the stratified check finds no reversal to escalate on either.
+
+    (This scenario deliberately differs from an earlier version of this test that
+    used group sizes producing a genuine within-stratum reversal in the "small"
+    stratum -- that was found, while building the v2 stratified-effect check, to
+    correctly escalate to blocks_conclusion, which is the MORE correct behavior: a
+    real reversal is stronger evidence than a distributional gap alone. That
+    scenario now lives in
+    test_stratified_reversal_escalates_to_blocks_conclusion_even_with_a_moderate_gap
+    below.)"""
+    rows = []
+    for _ in range(15):
+        rows.append({"region": "North", "format": "large", "avg_basket": 150.0})
+    for _ in range(5):
+        rows.append({"region": "North", "format": "small", "avg_basket": 140.0})
+    for _ in range(5):
+        rows.append({"region": "South", "format": "large", "avg_basket": 100.0})
+    for _ in range(15):
+        rows.append({"region": "South", "format": "small", "avg_basket": 90.0})
+    df = pd.DataFrame(rows)
+    evidence = [_ev("ev_0", "t_test", "avg_basket", {
+        "group_column": "region", "group_a": {"label": "North", "n": 20}, "group_b": {"label": "South", "n": 20},
+    })]
+    limitations = detect_confounds(df, evidence)
+    format_limitation = next(l for l in limitations if "format" in l.text)
+    assert format_limitation.severity == "reduces_confidence"
+    assert "severe" not in format_limitation.text.lower()
+    assert "same direction" in format_limitation.text.lower()
+
+
+def test_stratified_reversal_escalates_to_blocks_conclusion_even_with_a_moderate_gap():
+    """v2 confound engine: a genuine within-stratum REVERSAL (North looks WORSE than
+    South specifically within the well-powered "small" stratum, even though North
+    looks much better in aggregate) is stronger evidence than the raw distributional
+    gap alone, and escalates to blocks_conclusion even though the gap itself (a
+    50-point split: North 55%/45% large/small vs South 15%/85%) is only "moderate",
+    below _SEVERE_CONFOUND_PROPORTION_GAP_THRESHOLD. Real numbers verified by direct
+    computation: aggregate North=114.0 > South=90.2, but within "small"
+    (North n=9, South n=17, both >= the stratified minimum) North=70.0 < South=80.0
+    -- a real reversal, not a rounding artifact."""
     rows = []
     for _ in range(11):
         rows.append({"region": "North", "format": "large", "avg_basket": 150.0})
@@ -101,8 +143,8 @@ def test_moderate_confound_stays_at_reduces_confidence_severity():
     })]
     limitations = detect_confounds(df, evidence)
     format_limitation = next(l for l in limitations if "format" in l.text)
-    assert format_limitation.severity == "reduces_confidence"
-    assert "severe" not in format_limitation.text.lower()
+    assert format_limitation.severity == "blocks_conclusion"
+    assert "reverses direction" in format_limitation.text.lower()
 
 
 def test_no_confound_flagged_when_the_other_variable_is_evenly_split():
@@ -292,3 +334,144 @@ def test_deduplicates_repeated_comparisons_of_the_same_groups():
     limitations = detect_confounds(df, evidence)
     signatures = {(l.text) for l in limitations}
     assert len(limitations) == len(signatures)  # no duplicate text entries for the same finding
+
+
+# --- v2 confound engine: numeric confounds -----------------------------------------------
+
+
+def test_a_numeric_candidate_with_a_large_standardized_mean_gap_is_flagged():
+    """A NUMERIC confound (customer tenure) -- the v1 module was explicitly scoped to
+    categorical-only. North customers are, on average, much longer-tenured than South
+    customers, and tenure itself plausibly drives basket size."""
+    rng = np.random.default_rng(3)
+    n = 15
+    df = pd.DataFrame({
+        "region": ["North"] * n + ["South"] * n,
+        "tenure_months": np.concatenate([rng.normal(48, 4, n), rng.normal(6, 4, n)]),
+        "avg_basket": np.concatenate([rng.normal(150, 5, n), rng.normal(90, 5, n)]),
+    })
+    evidence = [_ev("ev_0", "t_test", "avg_basket", {
+        "group_column": "region", "group_a": {"label": "North", "n": n}, "group_b": {"label": "South", "n": n},
+    })]
+    limitations = detect_confounds(df, evidence)
+    tenure_limitations = [l for l in limitations if "tenure_months" in l.text]
+    assert tenure_limitations, f"no numeric confound was detected: {[l.text for l in limitations]}"
+    assert "standardized effect size" in tenure_limitations[0].text
+
+
+def test_a_numeric_candidate_with_similar_means_is_not_flagged():
+    rng = np.random.default_rng(4)
+    n = 15
+    df = pd.DataFrame({
+        "region": ["North"] * n + ["South"] * n,
+        "tenure_months": np.concatenate([rng.normal(24, 4, n), rng.normal(23, 4, n)]),
+        "avg_basket": np.concatenate([rng.normal(150, 5, n), rng.normal(90, 5, n)]),
+    })
+    evidence = [_ev("ev_0", "t_test", "avg_basket", {
+        "group_column": "region", "group_a": {"label": "North", "n": n}, "group_b": {"label": "South", "n": n},
+    })]
+    limitations = detect_confounds(df, evidence)
+    assert not any("tenure_months" in l.text for l in limitations)
+
+
+def test_the_metric_column_itself_is_never_flagged_as_a_numeric_confound_of_itself():
+    """avg_basket obviously 'differs' between the groups (that's the comparison
+    being made) -- it must never be flagged as a numeric confound OF ITSELF."""
+    df = _confounded_df()
+    evidence = [_ev("ev_0", "t_test", "avg_basket", {
+        "group_column": "region", "group_a": {"label": "North"}, "group_b": {"label": "South"},
+    })]
+    limitations = detect_confounds(df, evidence)
+    assert not any(l.text.startswith("'avg_basket' (numeric)") for l in limitations)
+
+
+# --- v2 confound engine: missingness confounds -------------------------------------------
+
+
+def test_a_large_missingness_gap_is_flagged():
+    rng = np.random.default_rng(5)
+    n = 20
+    email_north = [f"n{i}@x.com" for i in range(n)]
+    for i in range(1):  # 5% missing in North
+        email_north[i] = None
+    email_south = [f"s{i}@x.com" for i in range(n)]
+    for i in range(13):  # 65% missing in South
+        email_south[i] = None
+    df = pd.DataFrame({
+        "region": ["North"] * n + ["South"] * n,
+        "email": email_north + email_south,
+        "avg_basket": rng.normal(120, 10, 2 * n),
+    })
+    evidence = [_ev("ev_0", "t_test", "avg_basket", {
+        "group_column": "region", "group_a": {"label": "North", "n": n}, "group_b": {"label": "South", "n": n},
+    })]
+    limitations = detect_confounds(df, evidence)
+    email_limitations = [l for l in limitations if "email" in l.text]
+    assert email_limitations, f"no missingness confound was detected: {[l.text for l in limitations]}"
+    assert "missing" in email_limitations[0].text.lower()
+
+
+def test_similar_missingness_rates_are_not_flagged():
+    rng = np.random.default_rng(6)
+    n = 20
+    df = pd.DataFrame({
+        "region": ["North"] * n + ["South"] * n,
+        "email": [f"n{i}@x.com" if i % 10 else None for i in range(n)] + [f"s{i}@x.com" if i % 10 else None for i in range(n)],
+        "avg_basket": rng.normal(120, 10, 2 * n),
+    })
+    evidence = [_ev("ev_0", "t_test", "avg_basket", {
+        "group_column": "region", "group_a": {"label": "North", "n": n}, "group_b": {"label": "South", "n": n},
+    })]
+    limitations = detect_confounds(df, evidence)
+    assert not any("email" in l.text and "missing" in l.text.lower() for l in limitations)
+
+
+# --- v2 confound engine: identifier exclusion ---------------------------------------------
+
+
+def test_a_near_unique_identifier_column_is_never_flagged_even_if_skewed():
+    """A per-row customer ID is never a plausible confounding VARIABLE -- even
+    though every value trivially 'differs' between groups (every ID is unique), it
+    must be excluded as an identifier, not reported as a confound."""
+    rng = np.random.default_rng(7)
+    n = 15
+    df = pd.DataFrame({
+        "region": ["North"] * n + ["South"] * n,
+        "customer_id": [f"CUST-{i:05d}" for i in range(2 * n)],
+        "avg_basket": np.concatenate([rng.normal(150, 5, n), rng.normal(90, 5, n)]),
+    })
+    evidence = [_ev("ev_0", "t_test", "avg_basket", {
+        "group_column": "region", "group_a": {"label": "North", "n": n}, "group_b": {"label": "South", "n": n},
+    })]
+    limitations = detect_confounds(df, evidence)
+    assert not any("customer_id" in l.text for l in limitations)
+
+
+# --- v2 confound engine: stratified check downgrades + mediator caveat --------------------
+
+
+def test_consistent_within_strata_but_much_smaller_magnitude_adds_a_possible_mediator_note():
+    """A candidate whose stratified check finds the SAME direction in every checked
+    stratum, but a much SMALLER magnitude than the aggregate gap (most of the
+    aggregate gap comes from compositional imbalance, not the within-stratum effect)
+    -- this shape is equally consistent with a true confound or with the candidate
+    being a downstream mediator, and the text must say so honestly rather than pick
+    one causal story."""
+    rows = []
+    for _ in range(15):
+        rows.append({"region": "North", "format": "large", "avg_basket": 102.0})
+    for _ in range(5):
+        rows.append({"region": "North", "format": "small", "avg_basket": 52.0})
+    for _ in range(5):
+        rows.append({"region": "South", "format": "large", "avg_basket": 100.0})
+    for _ in range(15):
+        rows.append({"region": "South", "format": "small", "avg_basket": 50.0})
+    df = pd.DataFrame(rows)
+    evidence = [_ev("ev_0", "t_test", "avg_basket", {
+        "group_column": "region", "group_a": {"label": "North", "n": 20}, "group_b": {"label": "South", "n": 20},
+    })]
+    limitations = detect_confounds(df, evidence)
+    format_limitation = next(l for l in limitations if "format" in l.text)
+    assert format_limitation.severity == "reduces_confidence"
+    assert "mediator" in format_limitation.text.lower()
+    assert "reverses direction" not in format_limitation.text.lower()
