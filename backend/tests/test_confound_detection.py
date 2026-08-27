@@ -89,6 +89,26 @@ def test_flags_a_real_confound_from_a_group_and_aggregate_comparison():
     assert any("format" in l.text for l in limitations)
 
 
+# --- anova_test-shaped evidence (found missing entirely, added as its own branch) ------
+
+
+def test_flags_a_real_confound_from_an_anova_test_comparison():
+    """Real gap found via direct testing: anova_test's real result shape
+    ("group_column" + a "groups" DICT keyed by group name, not a list and not
+    group_a/group_b) matched neither of _extract_comparison's original two
+    branches, so a 3+-group ANOVA comparison got zero confound-checking coverage at
+    all until this branch was added."""
+    df = _confounded_df()
+    evidence = [
+        _ev("ev_0", "anova_test", "avg_basket", {
+            "test": "one_way_anova", "value_column": "avg_basket", "group_column": "region",
+            "groups": {"North": {"n": 20, "mean": 143.0}, "South": {"n": 20, "mean": 88.0}}, "statistic": 12.0,
+        }),
+    ]
+    limitations = detect_confounds(df, evidence)
+    assert any("format" in l.text for l in limitations)
+
+
 # --- guardrails: no false positives -----------------------------------------------------
 
 

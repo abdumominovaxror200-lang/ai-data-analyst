@@ -58,7 +58,15 @@ _MIN_PRESENCE_FRACTION = 0.03
 
 def _extract_comparison(result_summary: dict) -> tuple[str | None, list]:
     """Reads which column and which specific values were compared directly off a
-    tool's own real result shape -- never re-derived or guessed."""
+    tool's own real result shape -- never re-derived or guessed. Three distinct real
+    shapes are recognized (confirmed against app/tools/hypothesis.py and
+    app/tools/aggregation.py, not guessed):
+
+    - `t_test`: "group_column" + "group_a"/"group_b" dicts each with a "label".
+    - `group_and_aggregate`: "group_by" + a "groups" LIST of {"group": ..., ...} dicts.
+    - `anova_test`: "group_column" + a "groups" DICT keyed directly by group name
+      (found missing entirely in this function's first version -- a 3+-group ANOVA
+      comparison got zero confound-checking coverage until this branch was added)."""
     group_col = result_summary.get("group_column")
     if group_col:
         values = []
@@ -68,6 +76,10 @@ def _extract_comparison(result_summary: dict) -> tuple[str | None, list]:
                 values.append(g["label"])
         if len(values) >= 2:
             return group_col, values
+
+        groups_dict = result_summary.get("groups")
+        if isinstance(groups_dict, dict) and len(groups_dict) >= 2:
+            return group_col, list(groups_dict.keys())
 
     group_by = result_summary.get("group_by")
     groups_list = result_summary.get("groups")
