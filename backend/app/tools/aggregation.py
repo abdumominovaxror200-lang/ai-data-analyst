@@ -31,7 +31,17 @@ def group_and_aggregate(
     else:
         if not pd.api.types.is_numeric_dtype(working[agg_column]):
             raise ToolExecutionError(f"Column '{agg_column}' is not numeric; cannot compute '{agg_func}'.")
-        grouped = working.groupby(group_by, dropna=False)[agg_column].agg(agg_func).rename("value")
+        if agg_func == "sum" and pd.api.types.is_integer_dtype(working[agg_column]):
+            # Real numerical-correctness bug, not a cosmetic edge case: pandas/numpy
+            # int64 summation silently WRAPS AROUND on overflow (no warning, no
+            # exception) -- verified directly: summing two 2**62 values returns a
+            # large NEGATIVE number, not an error. Summing via the column cast to
+            # object dtype forces Python's arbitrary-precision int arithmetic, which
+            # cannot overflow, at the cost of a slower path used only for this one
+            # (integer, sum) combination.
+            grouped = working.groupby(group_by, dropna=False)[agg_column].apply(lambda s: s.astype(object).sum()).rename("value")
+        else:
+            grouped = working.groupby(group_by, dropna=False)[agg_column].agg(agg_func).rename("value")
 
     grouped = grouped.sort_values(ascending=False)
     if top_n:

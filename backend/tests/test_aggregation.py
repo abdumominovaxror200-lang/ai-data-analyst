@@ -53,3 +53,16 @@ def test_group_and_aggregate_respects_top_n(df):
     result = group_and_aggregate(df, group_by="region", agg_column="revenue", agg_func="sum", top_n=1)
     assert len(result["groups"]) == 1
     assert result["groups"][0]["group"] == "North"
+
+
+def test_group_and_aggregate_sum_does_not_silently_overflow_on_huge_integers():
+    """Real bug (v2 reliability mission, Phase 8): pandas/numpy int64 sum silently
+    WRAPS AROUND on overflow with no warning -- verified directly before this fix:
+    summing four 2**62 values returned a large NEGATIVE number. Object-dtype
+    summation forces Python's arbitrary-precision int arithmetic instead."""
+    df = pd.DataFrame({"g": ["A", "A", "B", "B"], "x": [2**62, 2**62, 2**62, 2**62]})
+    result = group_and_aggregate(df, group_by="g", agg_column="x", agg_func="sum")
+    values = {g["group"]: g["value"] for g in result["groups"]}
+    assert values["A"] > 0
+    assert values["B"] > 0
+    assert values["A"] == pytest.approx(2**63, rel=1e-9)

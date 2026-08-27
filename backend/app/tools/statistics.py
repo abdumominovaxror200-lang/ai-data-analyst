@@ -32,7 +32,7 @@ def describe_data(df: pd.DataFrame, columns: list[str] | None = None, filters: l
                 "median": _round(desc.get("50%")),
                 "p75": _round(desc.get("75%")),
                 "max": _round(desc.get("max")),
-                "sum": _round(series.sum()),
+                "sum": _round(_safe_sum(series)),
             }
         else:
             top = series.value_counts(dropna=True).head(5)
@@ -42,6 +42,16 @@ def describe_data(df: pd.DataFrame, columns: list[str] | None = None, filters: l
                 "top_values": {str(k): int(v) for k, v in top.items()},
             }
     return {"row_count": int(len(working)), "columns": result}
+
+
+def _safe_sum(series: pd.Series):
+    """Same real int64-wraparound bug fixed in aggregation.py::group_and_aggregate
+    -- pandas/numpy int64 sum silently overflows to a wildly wrong (often negative)
+    value with no warning. Object-dtype sum forces Python's arbitrary-precision int
+    arithmetic instead."""
+    if pd.api.types.is_integer_dtype(series):
+        return series.astype(object).sum()
+    return series.sum()
 
 
 def _round(value: float | None, ndigits: int = 4) -> float | None:

@@ -116,4 +116,10 @@ def _coverage_note(
 def _agg(series: pd.Series, agg_func: str) -> float | None:
     if series.empty:
         return None
+    if agg_func == "sum" and pd.api.types.is_integer_dtype(series):
+        # Same real int64-wraparound bug fixed in aggregation.py::group_and_aggregate
+        # -- pandas/numpy int64 sum silently overflows to a wildly wrong (often
+        # negative) value with no warning. Object-dtype sum forces Python's
+        # arbitrary-precision int arithmetic instead.
+        return round(float(series.astype(object).sum()), 4)
     return round(float(getattr(series, agg_func)()), 4)

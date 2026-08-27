@@ -98,3 +98,19 @@ def test_compare_periods_unknown_column_raises():
             previous_start="2024-01-01",
             previous_end="2024-01-02",
         )
+
+
+def test_compare_periods_sum_does_not_silently_overflow_on_huge_integers():
+    """Same real int64-wraparound bug fixed in aggregation.py::group_and_aggregate
+    (v2 reliability mission, Phase 8)."""
+    df = pd.DataFrame({
+        "date": [pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-01"), pd.Timestamp("2024-02-01"), pd.Timestamp("2024-02-01")],
+        "revenue": [2**62, 2**62, 100, 200],
+    })
+    result = compare_periods(
+        df, date_column="date", value_column="revenue", agg_func="sum",
+        current_start="2024-01-01", current_end="2024-01-31",
+        previous_start="2024-02-01", previous_end="2024-02-28",
+    )
+    assert result["current_period"]["value"] > 0
+    assert result["current_period"]["value"] == pytest.approx(2 * 2**62, rel=1e-9)
