@@ -120,6 +120,7 @@ class EvidenceOut(BaseModel):
     evidence_type: Literal["FACT", "CALCULATED_RESULT", "STATISTICAL_RESULT"]
     metric: str | None = None
     result_summary: dict[str, Any] = Field(default_factory=dict)
+    population: str | None = None
     sample_size: int | None = None
 
 

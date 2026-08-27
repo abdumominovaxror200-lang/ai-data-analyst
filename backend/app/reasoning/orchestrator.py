@@ -100,13 +100,19 @@ class ReasoningOrchestrator:
             limitations = limitations + confound_limitations
             trace.append(f"confound check: {len(confound_limitations)} possible confound(s) flagged")
 
-        # --- deterministic (final stress-test mission, Phase 5): a mean-vs-median (or
-        # any two differing aggregations) ranking contradiction over the same group
-        # comparison -- see contradiction_detection.py's module docstring.
-        contradiction_limitations = contradiction_detection.detect_ranking_contradictions(evidence)
+        # --- deterministic (Contradiction Engine, now 3 checks -- see
+        # contradiction_detection.py's module docstring): a mean-vs-median (or any
+        # two differing aggregations) ranking contradiction, an overall-vs-subgroup
+        # direction reversal, and conflicting data-quality signals across the same
+        # scope, all over the same group comparison / dataset.
+        contradiction_limitations = (
+            contradiction_detection.detect_ranking_contradictions(evidence)
+            + contradiction_detection.detect_overall_vs_subgroup_contradiction(evidence)
+            + contradiction_detection.detect_data_quality_contradictions(evidence)
+        )
         if contradiction_limitations:
             limitations = limitations + contradiction_limitations
-            trace.append(f"contradiction check: {len(contradiction_limitations)} ranking contradiction(s) flagged")
+            trace.append(f"contradiction check: {len(contradiction_limitations)} contradiction(s) flagged")
 
         # --- deterministic (Phase 4 P1): derive hypothesis status from gathered
         # evidence -- never from the LLM declaring itself "supported". This is what

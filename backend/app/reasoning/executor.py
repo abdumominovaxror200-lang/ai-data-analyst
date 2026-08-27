@@ -119,6 +119,28 @@ def _guess_metric(call: ToolCallRecord) -> str | None:
     return None
 
 
+def _guess_population(call: ToolCallRecord) -> str | None:
+    """Reads which subset of the dataset this call was actually scoped to, directly
+    off the tool call's own real `filters` param -- never guessed from the result.
+    `None` means "no filters" (the call ran over the whole dataset), a real,
+    meaningful distinct value from "unknown" -- callers should not conflate the two.
+
+    `Evidence.population` existed in the contract but was never populated anywhere
+    (confirmed by grep before wiring this in) -- found while building the v2
+    contradiction engine's "overall vs subgroup" check, which needs exactly this
+    signal to tell an unfiltered ("overall") tool call apart from a segment-scoped
+    one for the same metric."""
+    params = call.params or {}
+    filters = params.get("filters")
+    if not isinstance(filters, list) or not filters:
+        return None
+    parts = []
+    for f in filters:
+        if isinstance(f, dict) and "column" in f and "op" in f and "value" in f:
+            parts.append(f"{f['column']} {f['op']} {f['value']}")
+    return " AND ".join(parts) if parts else None
+
+
 def _guess_sample_size(result: dict) -> int | None:
     for key in ("n", "n_observations", "n_rows_used", "row_count", "total_rows", "n_customers"):
         value = result.get(key)
@@ -141,6 +163,7 @@ def _to_evidence(index: int, call: ToolCallRecord) -> Evidence:
         evidence_type=_evidence_type_for_tool(call.tool),
         metric=_guess_metric(call),
         result_summary=_bounded_summary(result),
+        population=_guess_population(call),
         sample_size=_guess_sample_size(result),
         tool_call_ref=f"tool_call[{index}]",
     )

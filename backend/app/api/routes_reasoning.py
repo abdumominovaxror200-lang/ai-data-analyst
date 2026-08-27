@@ -71,6 +71,7 @@ def reason(request: ReasonRequest) -> ReasonResponse:
                 evidence_type=e.evidence_type,
                 metric=e.metric,
                 result_summary=e.result_summary,
+                population=e.population,
                 sample_size=e.sample_size,
             )
             for e in result.evidence

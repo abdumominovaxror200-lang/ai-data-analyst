@@ -13,7 +13,11 @@ import pandas as pd
 from app.agent.providers import MockProvider, ProviderResponse, ToolCall
 from app.datasets.storage import DatasetRecord
 from app.reasoning.contracts import Evidence
-from app.reasoning.contradiction_detection import detect_ranking_contradictions
+from app.reasoning.contradiction_detection import (
+    detect_data_quality_contradictions,
+    detect_overall_vs_subgroup_contradiction,
+    detect_ranking_contradictions,
+)
 from app.reasoning.orchestrator import ReasoningOrchestrator
 
 
@@ -130,3 +134,177 @@ def test_ranking_contradiction_reaches_the_final_result_end_to_end():
     contradiction_limitations = [l for l in result.limitations if "ranks" in l.text and "region" in l.text]
     assert contradiction_limitations, f"no ranking contradiction was detected: {[l.text for l in result.limitations]}"
     assert "North" in contradiction_limitations[0].text and "South" in contradiction_limitations[0].text
+
+
+# --- v2 contradiction engine: overall vs subgroup ---------------------------------------
+
+
+def _period_ev(id_, pct_change, population=None):
+    return Evidence(
+        id=id_, source_tool="compare_periods", evidence_type="CALCULATED_RESULT", metric="revenue",
+        result_summary={
+            "current_period": {"start": "2025-04-01", "end": "2025-04-30", "value": 100.0, "n": 30},
+            "previous_period": {"start": "2025-03-01", "end": "2025-03-31", "value": 90.0, "n": 31},
+            "delta": 10.0, "pct_change": pct_change, "agg_func": "sum",
+        },
+        population=population, tool_call_ref=f"tool_call[{id_}]",
+    )
+
+
+def test_overall_increase_with_every_subgroup_decreasing_is_flagged():
+    """The mission's own flagship example, verbatim: revenue increased overall but
+    every examined subgroup decreased."""
+    evidence = [
+        _period_ev("ev_0", 15.0, population=None),
+        _period_ev("ev_1", -8.0, population="segment == Enterprise"),
+        _period_ev("ev_2", -12.0, population="segment == SMB"),
+    ]
+    limitations = detect_overall_vs_subgroup_contradiction(evidence)
+    assert len(limitations) == 1
+    assert limitations[0].severity == "blocks_conclusion"
+    assert "increased overall" in limitations[0].text
+    assert "every examined subgroup" in limitations[0].text
+
+
+def test_overall_and_subgroups_agreeing_is_not_flagged():
+    evidence = [
+        _period_ev("ev_0", 15.0, population=None),
+        _period_ev("ev_1", 10.0, population="segment == Enterprise"),
+        _period_ev("ev_2", 20.0, population="segment == SMB"),
+    ]
+    assert detect_overall_vs_subgroup_contradiction(evidence) == []
+
+
+def test_only_one_subgroup_disagreeing_is_not_flagged():
+    """A single dissenting subgroup is normal, not a contradiction -- only a
+    unanimous reversal across every examined subgroup counts."""
+    evidence = [
+        _period_ev("ev_0", 15.0, population=None),
+        _period_ev("ev_1", -8.0, population="segment == Enterprise"),
+        _period_ev("ev_2", 20.0, population="segment == SMB"),
+    ]
+    assert detect_overall_vs_subgroup_contradiction(evidence) == []
+
+
+def test_no_overall_call_present_is_not_flagged():
+    evidence = [
+        _period_ev("ev_1", -8.0, population="segment == Enterprise"),
+        _period_ev("ev_2", -12.0, population="segment == SMB"),
+    ]
+    assert detect_overall_vs_subgroup_contradiction(evidence) == []
+
+
+def test_fewer_than_two_subgroups_is_not_flagged():
+    evidence = [
+        _period_ev("ev_0", 15.0, population=None),
+        _period_ev("ev_1", -8.0, population="segment == Enterprise"),
+    ]
+    assert detect_overall_vs_subgroup_contradiction(evidence) == []
+
+
+def test_overall_vs_subgroup_reaches_the_final_result_end_to_end():
+    """Real end-to-end proof: three real compare_periods tool calls (one
+    unfiltered, two filtered) against a constructed dataset where this pattern
+    genuinely exists -- a real mix-shift Simpson's paradox on AVERAGE order value
+    (mean, not sum: a straightforward sum can never produce this pattern when
+    segments fully partition the data, since segment sums must add up to the
+    overall sum by simple arithmetic -- verified by direct computation before
+    writing this test that every segment's own mean genuinely decreases while more
+    order volume shifts toward the high-value Enterprise segment, pulling the
+    OVERALL mean up: overall March mean ~145, April mean ~588; Enterprise March
+    ~1002, April ~949 (down); SMB March ~50, April ~48 (down))."""
+    rng = np.random.default_rng(1)
+    rows = []
+    for _ in range(10):
+        rows.append({"date": pd.Timestamp("2025-03-15"), "segment": "Enterprise", "order_value": 1000.0 + rng.normal(0, 10)})
+    for _ in range(90):
+        rows.append({"date": pd.Timestamp("2025-03-15"), "segment": "SMB", "order_value": 50.0 + rng.normal(0, 2)})
+    for _ in range(60):
+        rows.append({"date": pd.Timestamp("2025-04-15"), "segment": "Enterprise", "order_value": 950.0 + rng.normal(0, 10)})
+    for _ in range(40):
+        rows.append({"date": pd.Timestamp("2025-04-15"), "segment": "SMB", "order_value": 48.0 + rng.normal(0, 2)})
+    df = pd.DataFrame(rows)
+    record = DatasetRecord(id="x", original_filename="x.csv", extension=".csv", uploaded_at=pd.Timestamp.utcnow(), df=df, stored_path="u")
+
+    parsed_question = {
+        "intent": "diagnostic", "requested_metrics": ["order_value"], "requested_dimensions": ["segment"],
+        "requested_time_range": None, "requested_population": None, "explicit_constraints": [],
+        "required_confidence": None, "language": "en", "claims": [],
+    }
+    plan = {
+        "objective": "Check average order value trend by segment", "capability_categories": ["GENERAL_ANALYSIS"], "steps": [],
+        "tools_required": ["compare_periods"], "expected_outputs": [], "validation_steps": [],
+        "stopping_conditions": ["done"], "hypotheses": [],
+    }
+    common_args = {
+        "date_column": "date", "value_column": "order_value", "agg_func": "mean",
+        "current_start": "2025-04-01", "current_end": "2025-04-30",
+        "previous_start": "2025-03-01", "previous_end": "2025-03-31",
+    }
+    responses = [
+        ProviderResponse(content=json.dumps(parsed_question)),
+        ProviderResponse(content=json.dumps(plan)),
+        ProviderResponse(content=None, tool_calls=[ToolCall(id="c1", name="compare_periods", arguments=dict(common_args))]),
+        ProviderResponse(content=None, tool_calls=[ToolCall(id="c2", name="compare_periods", arguments={**common_args, "filters": [{"column": "segment", "op": "==", "value": "Enterprise"}]})]),
+        ProviderResponse(content=None, tool_calls=[ToolCall(id="c3", name="compare_periods", arguments={**common_args, "filters": [{"column": "segment", "op": "==", "value": "SMB"}]})]),
+        ProviderResponse(content="evidence gathered"),
+        ProviderResponse(content=json.dumps({"final_answer_text": "Average order value is summarized above.", "recommendation": None})),
+    ]
+    orchestrator = ReasoningOrchestrator(MockProvider(responses))
+    result = orchestrator.analyze(record, "How did average order value change month over month by segment?")
+
+    contradiction_limitations = [l for l in result.limitations if "overall" in l.text and "subgroup" in l.text]
+    assert contradiction_limitations, f"no overall-vs-subgroup contradiction detected: {[l.text for l in result.limitations]}"
+    assert contradiction_limitations[0].severity == "blocks_conclusion"
+
+
+# --- v2 contradiction engine: conflicting data-quality signals ---------------------------
+
+
+def _quality_ev(id_, tool, result_summary, population=None):
+    return Evidence(
+        id=id_, source_tool=tool, evidence_type="CALCULATED_RESULT", metric=None,
+        result_summary=result_summary, population=population, tool_call_ref=f"tool_call[{id_}]",
+    )
+
+
+def test_clean_report_vs_dirty_anomaly_scan_is_flagged():
+    evidence = [
+        _quality_ev("ev_0", "data_quality_report", {"quality_issues": []}),
+        _quality_ev("ev_1", "detect_anomalies", {"anomaly_pct": 42.0}),
+    ]
+    limitations = detect_data_quality_contradictions(evidence)
+    assert len(limitations) == 1
+    assert limitations[0].severity == "reduces_confidence"
+    assert "conflicting data-quality signals" in limitations[0].text
+
+
+def test_both_tools_agreeing_clean_is_not_flagged():
+    evidence = [
+        _quality_ev("ev_0", "data_quality_report", {"quality_issues": []}),
+        _quality_ev("ev_1", "detect_anomalies", {"anomaly_pct": 2.0}),
+    ]
+    assert detect_data_quality_contradictions(evidence) == []
+
+
+def test_both_tools_agreeing_dirty_is_not_flagged():
+    evidence = [
+        _quality_ev("ev_0", "data_quality_report", {"quality_issues": ["dup rows"]}),
+        _quality_ev("ev_1", "detect_anomalies", {"anomaly_pct": 42.0}),
+    ]
+    assert detect_data_quality_contradictions(evidence) == []
+
+
+def test_different_populations_are_not_compared_against_each_other():
+    """Two verification tools examining DIFFERENT scopes disagreeing is not a real
+    contradiction -- it may just mean the subsets genuinely differ."""
+    evidence = [
+        _quality_ev("ev_0", "data_quality_report", {"quality_issues": []}, population="region == North"),
+        _quality_ev("ev_1", "detect_anomalies", {"anomaly_pct": 42.0}, population="region == South"),
+    ]
+    assert detect_data_quality_contradictions(evidence) == []
+
+
+def test_a_single_verification_tool_alone_is_never_flagged():
+    evidence = [_quality_ev("ev_0", "detect_anomalies", {"anomaly_pct": 42.0})]
+    assert detect_data_quality_contradictions(evidence) == []
