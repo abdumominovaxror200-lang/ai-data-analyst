@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import json
 
+import numpy as np
+import pandas as pd
+
 from app.agent.providers import MockProvider, ProviderResponse, ToolCall
 from tests.conftest import make_csv_bytes
 
@@ -385,3 +388,89 @@ def test_both_chat_and_reason_endpoints_work_against_the_same_dataset(client, sa
     reason_response = client.post("/api/reason", json={"dataset_id": dataset_id, "message": "profile this"})
     assert reason_response.status_code == 200
     assert reason_response.json()["answer"] == "reasoning path answer"
+
+
+# --- 6. blocks_conclusion severity + the confidence downgrade it causes are both -----
+#        visible in the real HTTP response shape, not just the internal AnalysisResult.
+
+
+def test_reason_endpoint_exposes_blocks_conclusion_severity_and_the_resulting_confidence_downgrade(client, monkeypatch):
+    """Requirement: 'the final structured API response exposes the limitation.' Drives
+    a genuine HTTP round trip (upload -> POST /api/reason) against a severe (80-point)
+    region/format confound -- the same real pattern region_size_confound's fixture and
+    confound_detection.py's severity-escalation logic (test_confound_detection.py's
+    test_severe_confound_gets_blocks_conclusion_severity) already cover at the unit and
+    orchestrator level. This is the layer above both: proves LimitationOut.severity ==
+    'blocks_conclusion' and RecommendationOut.confidence == None both survive the
+    Pydantic response-model serialization in routes_reasoning.py, not just the
+    internal AnalysisResult object those other tests inspect directly."""
+    rng = np.random.default_rng(1)
+    rows = []
+    for _ in range(18):
+        rows.append({"region": "North", "format": "large", "avg_basket": rng.normal(150, 5)})
+    for _ in range(2):
+        rows.append({"region": "North", "format": "small", "avg_basket": rng.normal(70, 5)})
+    for _ in range(2):
+        rows.append({"region": "South", "format": "large", "avg_basket": rng.normal(148, 5)})
+    for _ in range(18):
+        rows.append({"region": "South", "format": "small", "avg_basket": rng.normal(80, 5)})
+    df = pd.DataFrame(rows)
+
+    parse = ProviderResponse(
+        content=json.dumps(
+            {
+                "intent": "comparative", "requested_metrics": ["avg_basket"], "requested_dimensions": ["region"],
+                "requested_time_range": None, "requested_population": None, "explicit_constraints": [],
+                "required_confidence": None, "language": "en", "claims": [],
+            }
+        )
+    )
+    plan = ProviderResponse(
+        content=json.dumps(
+            {
+                "objective": "Compare regions", "capability_categories": ["STATISTICS"], "steps": [],
+                "tools_required": ["t_test", "effect_size"], "expected_outputs": [], "validation_steps": [],
+                "stopping_conditions": ["done"], "hypotheses": [],
+            }
+        )
+    )
+    call_1 = ProviderResponse(content=None, tool_calls=[ToolCall(id="call_1", name="t_test", arguments={
+        "column": "avg_basket", "group_column": "region", "group_a": "North", "group_b": "South",
+    })])
+    call_2 = ProviderResponse(content=None, tool_calls=[ToolCall(id="call_2", name="effect_size", arguments={
+        "column": "avg_basket", "group_column": "region", "group_a": "North", "group_b": "South",
+    })])
+    exec_stop = ProviderResponse(content="evidence gathered")
+    synth = ProviderResponse(
+        content=json.dumps(
+            {
+                "final_answer_text": "North significantly outperforms South -- recommend reallocating budget immediately.",
+                "recommendation": {
+                    "recommendation": "Reallocate budget to North immediately.",
+                    "expected_business_effect": "Higher average basket size.",
+                    "confidence": "high",
+                    "assumptions": [], "risks": [],
+                },
+            }
+        )
+    )
+    _patch_provider(monkeypatch, [parse, plan, call_1, call_2, exec_stop, synth])
+
+    files = {"file": ("baskets.csv", make_csv_bytes(df), "text/csv")}
+    dataset_id = client.post("/api/datasets/upload", files=files).json()["dataset_id"]
+    response = client.post("/api/reason", json={"dataset_id": dataset_id, "message": "Is North a better-performing region than South?"})
+
+    assert response.status_code == 200
+    body = response.json()
+
+    confound_limitations = [l for l in body["limitations"] if "confound" in l["text"].lower()]
+    assert confound_limitations, f"no confound limitation in the API response: {body['limitations']}"
+    assert any(l["severity"] == "blocks_conclusion" for l in confound_limitations), (
+        f"severe confound severity did not survive to the API response: {confound_limitations}"
+    )
+
+    if body["recommendation"] is not None:
+        assert body["recommendation"]["confidence"] is None, (
+            f"a confident recommendation reached the real HTTP response despite a "
+            f"blocks_conclusion-severity confound: {body['recommendation']}"
+        )

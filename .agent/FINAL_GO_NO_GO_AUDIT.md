@@ -28,6 +28,68 @@ this audit incorrectly stated no such file existed for `recommendation_grounding
 — corrected here). Full regression: 974 passed, 74 skipped, 0 failed. All 3 benchmark
 suites unchanged (hard 97.1%, final_100 99.0%, professional 100.0%) — purely additive.
 
+## 0a. blocks_conclusion end-to-end verification + the exact same "computed but
+##     unreachable" pattern found once more, in a different check
+
+The `blocks_conclusion` override above was unit-tested against
+`evaluate_recommendation_grounding` directly, but the mechanism it protects
+(`confound_detection.py`'s severity field) had itself never actually escalated to
+`blocks_conclusion` in practice — grep confirmed exactly one `severity=` assignment in
+that file, always `"reduces_confidence"`, even for a 90%-vs-10% near-total categorical
+split. The override existed, but nothing in the pipeline could trigger it. Fixed:
+`_SEVERE_CONFOUND_PROPORTION_GAP_THRESHOLD = 0.70` escalates a confound to
+`blocks_conclusion` when the proportion gap is severe (≥70 points); the existing
+40-70-point range stays `reduces_confidence`. Verified with the full chain, not just a
+unit test: 4 new orchestrator-level tests in `tests/test_blocks_conclusion_enforcement.py`
+drive the *real* `ReasoningOrchestrator` (real tool execution, real deterministic
+checks) against a `MockProvider` scripted as an adversarial model that claims high
+confidence anyway — covering a severe confound, a singular/ill-conditioned covariance
+matrix, a 4-observation sample, and limitation-visibility with no recommendation
+scripted at all. The confound case deliberately uses `t_test`+`effect_size` evidence
+(which reaches only "moderate" tier on its own) specifically so asserting
+`confidence is None` (not merely `!= "high"`) isolates the new mechanism from the
+pre-existing evidence-tier ceiling — a weaker assertion would have passed even with
+the override reverted. Two new unit tests in `tests/test_confound_detection.py` lock
+in the severity split itself. One new HTTP-level test in
+`tests/test_reasoning_integration.py` proves `LimitationOut.severity ==
+"blocks_conclusion"` and `RecommendationOut.confidence is None` both survive real
+Pydantic response serialization through `POST /api/reason`, not just the internal
+`AnalysisResult`.
+
+While building end-to-end coverage for the other three named numerical-reliability
+scenarios (denominator/population mismatch, unit mismatch, cross-tool aggregation
+mismatch — all three now covered in `tests/test_numerical_sanity_end_to_end.py`,
+driven through real tool calls: `t_test`+`linear_regression` for population mismatch,
+`group_and_aggregate` for a unit/magnitude outlier, `t_test`+`confidence_interval` for
+a cross-tool numeric disagreement), the fourth named scenario — **impossible
+percentage** — turned up a real, different architectural gap, not a wiring bug:
+
+`numerical_sanity._find_impossible_percentages` only scans a tool result's own
+top-level keys ending in `_pct`. Auditing every tool in `app/tools/` for which ones
+actually produce such a field found `duplicate_pct`, `missing_pct`, `top_value_pct`,
+`outlier_pct`, `anomaly_pct`, `match_pct`, `coverage_pct`, `cumulative_pct` —
+**every one of them is computed internally as an already-bounded count/total ratio**,
+so none can mathematically fall outside 0-100 regardless of the input data. The
+motivating real-world case this check's own docstring cites — `funnel_denominator`'s
+app-channel conversion rate computing to 800% (purchases > visits) — is *not*
+reachable through this check at all: no tool in the current toolset computes a
+funnel/conversion-style ratio across two separate aggregation results as a structured
+field. `hard_funnel_01`/`hard_ms_16` (the two hard-benchmark cases built around this
+exact trap) pass today purely because the *scripted* `final_answer_text` narrates the
+800%-is-impossible reasoning in prose — there is no deterministic backstop if a real
+model failed to notice it, which is precisely the failure mode this module's own
+stated purpose is to eliminate. Deliberately not "fixed" with a narrow detector shaped
+around this one fixture (that would be exactly the kind of benchmark-specific special
+casing the standing rules prohibit); a real general fix would need a new
+general-purpose "derived ratio between two related counts" capability, which is a
+genuine scoped piece of work for a future session, not a quick patch. Recorded here
+rather than silently left implied by a passing benchmark score.
+
+Full regression after all of the above: 985 passed, 74 skipped, 0 failed. All 4
+benchmark suites (hard/final_100/professional/adversarial) unchanged — confirmed via
+`git status` showing zero diff on any benchmark result JSON after re-running them, not
+just an unchanged score number.
+
 ## 1. Current architecture
 
 Two API surfaces over the same 39 deterministic tools:
