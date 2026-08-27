@@ -175,6 +175,49 @@ class Recommendation(BaseModel):
     risks: list[str] = Field(default_factory=list)
 
 
+# --- Analytical audit (v2 reliability mission, Phase 3/5) --------------------------
+#
+# A single, structured, deterministically-assembled summary of every deterministic
+# check this pipeline already runs -- NOT a new source of truth (every field here is
+# read from objects `orchestrator.py` already computes: the confound/contradiction/
+# numerical-sanity limitation lists it tracks separately before merging them into
+# `AnalysisResult.limitations`, `recommendation_grounding.py`'s own report, and
+# `causation_guard.py`'s hedging result). Exists so a caller (the LLM at synthesis
+# time, or an API consumer) can read ONE object instead of re-deriving "is this
+# conclusion actually safe to state confidently" from `limitations`' free text.
+#
+# `conclusion_status` is a pure function of the fields above it, evaluated in this
+# exact priority order (first match wins -- see `_classify_conclusion` in
+# `conclusion_guard.py` for the implementation):
+#   BLOCKED          -- any blocks_conclusion-severity limitation exists (the
+#                       existing, already-enforced mechanism -- this classification
+#                       reports it, does not weaken it: `blocks_conclusion` remains
+#                       real enforcement via recommendation_grounding.py/
+#                       conclusion_guard.py regardless of what this label says).
+#   CONTRADICTED      -- a genuine contradiction was detected (contradiction_detection.py)
+#                       that was not already severe enough to be BLOCKED.
+#   UNCERTAIN         -- evidence strength is "weak"/"none", or a recommendation-
+#                       grounding violation exists, with no blocking/contradiction.
+#   WEAKLY_SUPPORTED  -- evidence strength is "moderate".
+#   SUPPORTED         -- evidence strength is "strong", or no recommendation was
+#                       attempted and no issue was found at all.
+ConclusionStatus = Literal["SUPPORTED", "WEAKLY_SUPPORTED", "UNCERTAIN", "CONTRADICTED", "BLOCKED"]
+
+
+class AnalyticalAudit(BaseModel):
+    evidence_strength: Literal["strong", "moderate", "weak", "none"] | None = None
+    contradictions: list[str] = Field(default_factory=list)
+    confounds: list[str] = Field(default_factory=list)
+    numerical_issues: list[str] = Field(default_factory=list)
+    data_quality_issues: list[str] = Field(default_factory=list)
+    causal_language_hedged: bool = False
+    hedged_causal_phrases: list[str] = Field(default_factory=list)
+    recommendation_grounding_violations: list[str] = Field(default_factory=list)
+    unresolved_questions: list[str] = Field(default_factory=list)
+    conclusion_status: ConclusionStatus = "SUPPORTED"
+    final_confidence: Literal["high", "medium", "low"] | None = None
+
+
 # --- Top-level pipeline output -----------------------------------------------------
 
 
@@ -191,5 +234,9 @@ class AnalysisResult(BaseModel):
     # result by app.reasoning.epistemic_checks -- empty list means no violation was
     # detected, not that none were checked (see that module for exactly what's covered).
     principle_violations: list[str] = Field(default_factory=list)
+    # v2 reliability mission, Phase 3/5: the structured audit described above. None
+    # only for the two early-stop orchestrator paths that never reach the point
+    # where enough of the pipeline has run to assemble one meaningfully.
+    analytical_audit: AnalyticalAudit | None = None
     final_answer_text: str
     reasoning_trace: list[str] = Field(default_factory=list)

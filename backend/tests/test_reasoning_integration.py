@@ -474,3 +474,10 @@ def test_reason_endpoint_exposes_blocks_conclusion_severity_and_the_resulting_co
             f"a confident recommendation reached the real HTTP response despite a "
             f"blocks_conclusion-severity confound: {body['recommendation']}"
         )
+
+    # v2 reliability mission, Phase 3/5: the structured AnalyticalAudit must also
+    # reach the real HTTP response, and correctly classify this exact scenario as
+    # BLOCKED (not just expose the raw limitation text for a caller to re-derive).
+    assert body["analytical_audit"] is not None
+    assert body["analytical_audit"]["conclusion_status"] == "BLOCKED"
+    assert any("format" in c.lower() for c in body["analytical_audit"]["confounds"])

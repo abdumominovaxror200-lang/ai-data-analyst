@@ -31,6 +31,7 @@ from app.agent.providers import LLMProvider
 from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
 from app.reasoning import confound_detection, contradiction_detection, epistemic_checks, executor, hypothesis_evaluator, planner, question_parser, verifier
+from app.reasoning.analytical_audit import build_analytical_audit
 from app.reasoning.contracts import AnalysisResult, Finding, Limitation
 from app.reasoning.premise_validator import validate_question
 from app.reasoning.recommendation_grounding import evaluate_recommendation_grounding
@@ -131,6 +132,7 @@ class ReasoningOrchestrator:
 
         # --- deterministic (Phase 4 P0): cap recommendation confidence at what the
         # evidence actually supports -- never trust the LLM's own stated confidence.
+        grounding = None
         if recommendation is not None:
             grounding = evaluate_recommendation_grounding(recommendation, findings, evidence, hypotheses, limitations)
             if grounding.violations:
@@ -149,6 +151,14 @@ class ReasoningOrchestrator:
             question, claims, findings, evidence, hypotheses, limitations, recommendation, final_text
         )
 
+        # --- deterministic (v2 reliability mission, Phase 3/5): assemble the
+        # structured AnalyticalAudit from the pieces already computed above.
+        audit = build_analytical_audit(
+            limitations, confound_limitations, contradiction_limitations, verifier_limitations,
+            grounding, was_hedged, matched_phrases,
+        )
+        trace.append(f"analytical audit: conclusion_status={audit.conclusion_status}")
+
         return AnalysisResult(
             question=question,
             claims=claims,
@@ -161,6 +171,7 @@ class ReasoningOrchestrator:
             final_answer_text=final_text,
             reasoning_trace=trace,
             principle_violations=violations,
+            analytical_audit=audit,
         )
 
     # --- early-stop branches (Phase 3B.7) -----------------------------------------
@@ -176,6 +187,7 @@ class ReasoningOrchestrator:
             self._provider, question, claims, None, [], [finding], [], limitations
         )
         violations = epistemic_checks.check_all(question, claims, [finding], [], [], limitations, None, final_text)
+        audit = build_analytical_audit(limitations, [], [], [], None, False, [])
         return AnalysisResult(
             question=question,
             claims=claims,
@@ -188,6 +200,7 @@ class ReasoningOrchestrator:
             final_answer_text=final_text,
             reasoning_trace=trace,
             principle_violations=violations,
+            analytical_audit=audit,
         )
 
     def _stop_unavailable_capability(self, question, claims, plan, limitations, trace) -> AnalysisResult:
@@ -208,6 +221,7 @@ class ReasoningOrchestrator:
         violations = epistemic_checks.check_all(
             question, claims, [finding], [], list(plan.hypotheses), all_limitations, None, final_text
         )
+        audit = build_analytical_audit(all_limitations, [], [], [], None, False, [])
         return AnalysisResult(
             question=question,
             claims=claims,
@@ -220,6 +234,7 @@ class ReasoningOrchestrator:
             final_answer_text=final_text,
             reasoning_trace=trace,
             principle_violations=violations,
+            analytical_audit=audit,
         )
 
 

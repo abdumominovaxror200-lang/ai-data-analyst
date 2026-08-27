@@ -158,6 +158,23 @@ class RecommendationOut(BaseModel):
     supporting_findings: list[str] = Field(default_factory=list)  # FindingOut.id values
 
 
+class AnalyticalAuditOut(BaseModel):
+    """v2 reliability mission, Phase 3/5 -- see app.reasoning.contracts.AnalyticalAudit
+    for the full field-by-field derivation and conclusion_status priority order."""
+
+    evidence_strength: Literal["strong", "moderate", "weak", "none"] | None = None
+    contradictions: list[str] = Field(default_factory=list)
+    confounds: list[str] = Field(default_factory=list)
+    numerical_issues: list[str] = Field(default_factory=list)
+    data_quality_issues: list[str] = Field(default_factory=list)
+    causal_language_hedged: bool = False
+    hedged_causal_phrases: list[str] = Field(default_factory=list)
+    recommendation_grounding_violations: list[str] = Field(default_factory=list)
+    unresolved_questions: list[str] = Field(default_factory=list)
+    conclusion_status: Literal["SUPPORTED", "WEAKLY_SUPPORTED", "UNCERTAIN", "CONTRADICTED", "BLOCKED"]
+    final_confidence: Literal["high", "medium", "low"] | None = None
+
+
 class ReasonResponse(BaseModel):
     answer: str
     intent: str
@@ -171,3 +188,4 @@ class ReasonResponse(BaseModel):
     # Phase 4 P2's machine-checkable epistemic-principle audit -- computed since
     # Phase 4 but never surfaced through this API until now (Master Mission P1 fix).
     principle_violations: list[str] = Field(default_factory=list)
+    analytical_audit: AnalyticalAuditOut | None = None

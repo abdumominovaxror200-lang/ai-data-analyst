@@ -8,6 +8,7 @@ from app.agent.providers import LLMProviderError, build_provider_from_settings
 from app.datasets.storage import DatasetNotFoundError, get_dataset_store
 from app.reasoning.orchestrator import ReasoningOrchestrator
 from app.schemas import (
+    AnalyticalAuditOut,
     EvidenceOut,
     FindingOut,
     HypothesisOut,
@@ -128,4 +129,21 @@ def reason(request: ReasonRequest) -> ReasonResponse:
         tools_used=[e.source_tool for e in result.evidence],
         reasoning_trace=result.reasoning_trace,
         principle_violations=result.principle_violations,
+        analytical_audit=(
+            AnalyticalAuditOut(
+                evidence_strength=result.analytical_audit.evidence_strength,
+                contradictions=result.analytical_audit.contradictions,
+                confounds=result.analytical_audit.confounds,
+                numerical_issues=result.analytical_audit.numerical_issues,
+                data_quality_issues=result.analytical_audit.data_quality_issues,
+                causal_language_hedged=result.analytical_audit.causal_language_hedged,
+                hedged_causal_phrases=result.analytical_audit.hedged_causal_phrases,
+                recommendation_grounding_violations=result.analytical_audit.recommendation_grounding_violations,
+                unresolved_questions=result.analytical_audit.unresolved_questions,
+                conclusion_status=result.analytical_audit.conclusion_status,
+                final_confidence=result.analytical_audit.final_confidence,
+            )
+            if result.analytical_audit
+            else None
+        ),
     )
