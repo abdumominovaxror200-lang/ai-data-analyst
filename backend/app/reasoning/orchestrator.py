@@ -30,7 +30,7 @@ import logging
 from app.agent.providers import LLMProvider
 from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
-from app.reasoning import confound_detection, epistemic_checks, executor, hypothesis_evaluator, planner, question_parser, verifier
+from app.reasoning import confound_detection, contradiction_detection, epistemic_checks, executor, hypothesis_evaluator, planner, question_parser, verifier
 from app.reasoning.contracts import AnalysisResult, Finding, Limitation
 from app.reasoning.premise_validator import validate_question
 from app.reasoning.recommendation_grounding import evaluate_recommendation_grounding
@@ -99,6 +99,14 @@ class ReasoningOrchestrator:
         if confound_limitations:
             limitations = limitations + confound_limitations
             trace.append(f"confound check: {len(confound_limitations)} possible confound(s) flagged")
+
+        # --- deterministic (final stress-test mission, Phase 5): a mean-vs-median (or
+        # any two differing aggregations) ranking contradiction over the same group
+        # comparison -- see contradiction_detection.py's module docstring.
+        contradiction_limitations = contradiction_detection.detect_ranking_contradictions(evidence)
+        if contradiction_limitations:
+            limitations = limitations + contradiction_limitations
+            trace.append(f"contradiction check: {len(contradiction_limitations)} ranking contradiction(s) flagged")
 
         # --- deterministic (Phase 4 P1): derive hypothesis status from gathered
         # evidence -- never from the LLM declaring itself "supported". This is what
