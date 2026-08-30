@@ -10,7 +10,13 @@ const FEATURES = [
   { title: "Export a report", desc: "Turn findings into a structured business report in one click." },
 ];
 
-export function UploadView({ onUploaded }: { onUploaded: (res: UploadResponse) => void }) {
+export function UploadView({
+  onUploaded,
+  notice = null,
+}: {
+  onUploaded: (res: UploadResponse) => void;
+  notice?: string | null;
+}) {
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +61,12 @@ export function UploadView({ onUploaded }: { onUploaded: (res: UploadResponse) =
           Drop in a CSV or Excel file. The agent profiles it, answers questions, finds anomalies, and
           writes up findings — backed entirely by real Python calculations.
         </p>
+
+        {notice && (
+          <div className="mt-6 text-left">
+            <ErrorBanner message={notice} />
+          </div>
+        )}
 
         <label
           onDragOver={(e) => {
@@ -106,7 +118,7 @@ export function UploadView({ onUploaded }: { onUploaded: (res: UploadResponse) =
 
         <div className="mt-4">
           <Button variant="secondary" onClick={() => inputRef.current?.click()} disabled={loading}>
-            Choose a file
+            {notice ? "Upload another dataset" : "Choose a file"}
           </Button>
         </div>
 
