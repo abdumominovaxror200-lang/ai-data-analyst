@@ -8,6 +8,7 @@ from app.tools.errors import ToolExecutionError
 from app.tools.filtering import apply_filters
 
 _MIN_GROUP_SIZE = 2
+_MIN_TEMPORAL_GROUP_SIZE = 10
 
 
 def _ensure_finite_variance(*samples: pd.Series) -> None:
@@ -73,6 +74,15 @@ def t_test(
             raise ToolExecutionError(
                 f"Each group needs at least {_MIN_GROUP_SIZE} samples for a t-test "
                 f"(group_a n={len(sample_a)}, group_b n={len(sample_b)})."
+            )
+        if _is_temporal_grouping(group_column, groups, group_a, group_b) and (
+            len(sample_a) < _MIN_TEMPORAL_GROUP_SIZE or len(sample_b) < _MIN_TEMPORAL_GROUP_SIZE
+        ):
+            raise ToolExecutionError(
+                "Temporal significance test unavailable: each period needs at least "
+                f"{_MIN_TEMPORAL_GROUP_SIZE} independent analysis units after choosing a justified "
+                "unit such as day or week "
+                f"(group_a n={len(sample_a)}, group_b n={len(sample_b)}). No p-value was computed."
             )
         _ensure_finite_variance(sample_a, sample_b)
 
@@ -310,6 +320,23 @@ def _numeric_series(working: pd.DataFrame, column: str) -> pd.Series:
     if not pd.api.types.is_numeric_dtype(series):
         raise ToolExecutionError(f"Column '{column}' is not numeric.")
     return series.dropna()
+
+
+def _is_temporal_grouping(
+    group_column: str,
+    groups: pd.Series,
+    group_a: object,
+    group_b: object,
+) -> bool:
+    name = group_column.lower().replace("_", " ")
+    if any(token in name.split() for token in ("date", "day", "week", "month", "quarter", "year")):
+        return True
+    if pd.api.types.is_datetime64_any_dtype(groups):
+        return True
+    return all(
+        isinstance(value, (int, str)) and str(value).isdigit() and 1900 <= int(value) <= 2200
+        for value in (group_a, group_b)
+    )
 
 
 def _validate_alpha(alpha: float) -> None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from app.tools.anomaly import detect_anomalies
-from app.tools.comparison import compare_periods
+from app.tools.comparison import compare_periods, parse_date_series
 from app.tools.errors import ToolExecutionError
 from app.tools.filtering import apply_filters
 
@@ -173,22 +173,24 @@ def contribution_analysis(
 # --- executive_summary --------------------------------------------------------
 
 
-def _trend_for_metric(working: pd.DataFrame, date_column: str, metric_column: str, midpoint: pd.Timestamp, min_date: pd.Timestamp, max_date: pd.Timestamp) -> dict:
-    """Most-recent-half-vs-earlier-half comparison for one metric, via
-    `compare_periods` (reusing its date-math/coverage logic rather than
-    duplicating it). Only the compact, narratable fields are surfaced —
-    `compare_periods`'s full payload (dataset-wide coverage block repeated
-    per metric) is trimmed down here to keep an executive summary over many
-    metrics from growing unbounded."""
-    previous_end = midpoint - pd.Timedelta(microseconds=1)
+def _trend_for_metric(
+    working: pd.DataFrame,
+    date_column: str,
+    metric_column: str,
+    current_start: str,
+    current_end: str,
+    previous_start: str,
+    previous_end: str,
+) -> dict:
+    """Compare one metric through the shared explicit period contract."""
     result = compare_periods(
         working,
         date_column=date_column,
         value_column=metric_column,
-        current_start=midpoint.isoformat(),
-        current_end=max_date.isoformat(),
-        previous_start=min_date.isoformat(),
-        previous_end=previous_end.isoformat(),
+        current_start=current_start,
+        current_end=current_end,
+        previous_start=previous_start,
+        previous_end=previous_end,
         agg_func="sum",
     )
     delta = result["delta"] or 0.0
@@ -212,14 +214,19 @@ def executive_summary(
     metrics: list[str],
     filters: list[dict] | None = None,
     date_column: str | None = None,
+    current_start: str | None = None,
+    current_end: str | None = None,
+    previous_start: str | None = None,
+    previous_end: str | None = None,
 ) -> dict:
     """Bounded, structured KPI summary for an executive audience: for each
     column in `metrics`, reports total/mean/count, plus (only when
     `date_column` is given and the data has enough date range) a
-    period-over-period trend — most recent half of the date range vs. the
-    earlier half — computed via `compare_periods` (its date-math is reused,
-    not reimplemented), and whether `detect_anomalies` finds outliers worth
-    flagging.
+    period-over-period trend computed via `compare_periods` (its date-math is
+    reused, not reimplemented), and whether `detect_anomalies` finds outliers
+    worth flagging. When all four explicit boundaries are supplied, those exact
+    windows are used; otherwise the backward-compatible recent-half vs earlier-
+    half fallback is used.
 
     Trend eligibility (deterministic, documented, not silent): requires at
     least `_MIN_DISTINCT_DATES_FOR_TREND` (4) distinct dates and a total span
@@ -250,10 +257,19 @@ def executive_summary(
     trend_supported = False
     trend_reason = None
     min_date = max_date = midpoint = None
+    explicit_periods = (current_start, current_end, previous_start, previous_end)
+    if any(value is not None for value in explicit_periods) and date_column is None:
+        raise ToolExecutionError("Explicit period boundaries require date_column.")
+    if any(value is not None for value in explicit_periods) and not all(
+        value is not None for value in explicit_periods
+    ):
+        raise ToolExecutionError(
+            "current_start, current_end, previous_start, and previous_end must be provided together."
+        )
     if date_column is not None:
         if date_column not in working.columns:
             raise ToolExecutionError(f"Unknown column '{date_column}'.")
-        parsed_dates = pd.to_datetime(working[date_column], errors="coerce")
+        parsed_dates = parse_date_series(working[date_column])
         if parsed_dates.notna().sum() == 0:
             raise ToolExecutionError(f"Column '{date_column}' does not contain parseable dates.")
 
@@ -262,7 +278,9 @@ def executive_summary(
         distinct_dates = parsed_dates.dropna().nunique()
         span_days = (max_date - min_date).days
 
-        if distinct_dates >= _MIN_DISTINCT_DATES_FOR_TREND and span_days >= _MIN_SPAN_DAYS_FOR_TREND:
+        if all(value is not None for value in explicit_periods):
+            trend_supported = True
+        elif distinct_dates >= _MIN_DISTINCT_DATES_FOR_TREND and span_days >= _MIN_SPAN_DAYS_FOR_TREND:
             trend_supported = True
             midpoint = min_date + (max_date - min_date) / 2
         else:
@@ -284,7 +302,20 @@ def executive_summary(
 
         if date_column is not None:
             if trend_supported:
-                kpi["trend"] = _trend_for_metric(working, date_column, m, midpoint, min_date, max_date)
+                if current_start is None:
+                    current_start = midpoint.isoformat()
+                    current_end = max_date.isoformat()
+                    previous_start = min_date.isoformat()
+                    previous_end = (midpoint - pd.Timedelta(microseconds=1)).isoformat()
+                kpi["trend"] = _trend_for_metric(
+                    working,
+                    date_column,
+                    m,
+                    current_start,
+                    current_end,
+                    previous_start,
+                    previous_end,
+                )
             else:
                 kpi["trend"] = {"available": False, "reason": trend_reason}
 

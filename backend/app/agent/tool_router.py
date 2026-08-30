@@ -148,7 +148,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "compare_periods",
-            "description": "Compare an aggregated value between two date ranges, e.g. this year vs last year.",
+            "description": "Compare an aggregated value over two explicit inclusive date ranges. For 2025 vs 2024 use 2025-01-01..2025-12-31 and 2024-01-01..2024-12-31 consistently across tools.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -672,6 +672,10 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "metrics": {"type": "array", "items": {"type": "string"}},
                     "filters": FILTERS_SCHEMA,
                     "date_column": {"type": "string", "description": "Optional; enables a period-over-period trend per metric."},
+                    "current_start": {"type": "string", "description": "Optional ISO start; provide all four boundaries for an explicit comparison."},
+                    "current_end": {"type": "string"},
+                    "previous_start": {"type": "string"},
+                    "previous_end": {"type": "string"},
                 },
                 "required": ["metrics"],
             },

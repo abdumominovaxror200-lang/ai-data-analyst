@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import pandas as pd
 
 from app.tools.errors import ToolExecutionError
@@ -27,13 +29,20 @@ def compare_periods(
     if agg_func not in _AGG_FUNCS:
         raise ToolExecutionError(f"Unsupported aggregation '{agg_func}'. Use one of {sorted(_AGG_FUNCS)}.")
 
-    dates = pd.to_datetime(working[date_column], errors="coerce")
+    dates = parse_date_series(working[date_column])
     available_min = dates.min()
     available_max = dates.max()
 
     def _slice(start: str, end: str) -> pd.Series:
-        start_ts, end_ts = pd.to_datetime(start), pd.to_datetime(end)
-        mask = (dates >= start_ts) & (dates <= end_ts)
+        start_ts = _parse_boundary(start, "start")
+        end_ts = _parse_boundary(end, "end")
+        if start_ts > end_ts:
+            raise ToolExecutionError(f"Period start {start!r} must not be after end {end!r}.")
+        # A date-only end means the entire calendar day, including timestamped rows.
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", end.strip()):
+            mask = (dates >= start_ts) & (dates < end_ts + pd.Timedelta(days=1))
+        else:
+            mask = (dates >= start_ts) & (dates <= end_ts)
         return working.loc[mask, value_column]
 
     current = _slice(current_start, current_end)
@@ -79,8 +88,8 @@ def _coverage_note(
     if pd.isna(available_min) or pd.isna(available_max):
         return None
 
-    req_start = pd.to_datetime(requested_start)
-    req_end = pd.to_datetime(requested_end)
+    req_start = _parse_boundary(requested_start, "start")
+    req_end = _parse_boundary(requested_end, "end")
     requested_days = (req_end - req_start).days + 1
 
     overlap_start = max(req_start, available_min)
@@ -123,3 +132,21 @@ def _agg(series: pd.Series, agg_func: str) -> float | None:
         # arbitrary-precision int arithmetic instead.
         return round(float(series.astype(object).sum()), 4)
     return round(float(getattr(series, agg_func)()), 4)
+
+
+def parse_date_series(series: pd.Series) -> pd.Series:
+    """Parse mixed date representations identically for every temporal tool."""
+    try:
+        return pd.to_datetime(series, errors="coerce", format="mixed")
+    except (TypeError, ValueError):
+        return pd.to_datetime(series, errors="coerce")
+
+
+def _parse_boundary(value: str, label: str) -> pd.Timestamp:
+    try:
+        parsed = pd.to_datetime(value, errors="raise")
+    except (TypeError, ValueError) as exc:
+        raise ToolExecutionError(f"Invalid {label} date {value!r}; use an ISO date or timestamp.") from exc
+    if pd.isna(parsed):
+        raise ToolExecutionError(f"Invalid {label} date {value!r}; use an ISO date or timestamp.")
+    return parsed
