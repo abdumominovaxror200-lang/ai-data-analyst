@@ -26,12 +26,46 @@ to edit around it.
 
 from __future__ import annotations
 
-from app.reasoning.contracts import Limitation
+import re
+
+from app.reasoning.contracts import Finding, Limitation
 
 _CAVEAT_MARKER = "Important caveat:"
 
+# Narrow, high-confidence patterns: these target conclusion/recommendation language,
+# not ordinary factual comparisons. The prompt is the broad first line of defence;
+# this list is the deterministic safety boundary when the model ignores it.
+_DEFINITIVE_DRIVER_PATTERNS = (
+    r"\b(?:primary|dominant|main|key|root) (?:driver|cause)\b",
+    r"\broot cause\b",
+    r"\b(?:was|is) driven by\b",
+    r"\b(?:explains?|accounts? for|responsible for) (?:most|the majority|the decline|the change)\b",
+)
+_RECOMMENDATION_PATTERNS = (
+    r"\b(?:recommend|recommendation|recommended)\b",
+    r"\bshould\b",
+    r"\bconsider\b",
+    r"\bprioriti[sz]e\b",
+    r"\b(?:take|implement|pursue) (?:action|steps?|measures?)\b",
+    r"\bnext action\b",
+)
 
-def enforce_conclusion_guard(text: str, limitations: list[Limitation]) -> tuple[str, bool]:
+
+def blocked_narrative_violations(text: str) -> list[str]:
+    """Return deterministic violation classes found in a blocked narrative."""
+    violations = []
+    if any(re.search(pattern, text or "", re.IGNORECASE) for pattern in _DEFINITIVE_DRIVER_PATTERNS):
+        violations.append("definitive_driver")
+    if any(re.search(pattern, text or "", re.IGNORECASE) for pattern in _RECOMMENDATION_PATTERNS):
+        violations.append("recommendation_language")
+    return violations
+
+
+def enforce_conclusion_guard(
+    text: str,
+    limitations: list[Limitation],
+    findings: list[Finding] | None = None,
+) -> tuple[str, bool]:
     """Returns (possibly-caveated text, whether a caveat was added).
 
     Safe to call on any input: never raises, and idempotent against being applied
@@ -39,7 +73,13 @@ def enforce_conclusion_guard(text: str, limitations: list[Limitation]) -> tuple[
     `synthesize()`'s early-stop paths and the main path both funnel through here).
     """
     blocking = [l for l in (limitations or []) if l.severity == "blocks_conclusion"]
-    if not blocking or not text or _CAVEAT_MARKER in text:
+    if not blocking or not text:
+        return text, False
+
+    if blocked_narrative_violations(text):
+        return _safe_blocked_response(findings or [], blocking), True
+
+    if _CAVEAT_MARKER in text:
         return text, False
 
     reasons = "; ".join(l.text for l in blocking)
@@ -49,3 +89,27 @@ def enforce_conclusion_guard(text: str, limitations: list[Limitation]) -> tuple[
         "Treat the analysis below with that in mind.\n\n"
     )
     return caveat + text, True
+
+
+def _safe_blocked_response(findings: list[Finding], limitations: list[Limitation]) -> str:
+    safe_findings = [
+        finding.statement for finding in findings
+        if finding.classification in ("FACT", "CALCULATED_RESULT", "STATISTICAL_RESULT")
+        and not blocked_narrative_violations(finding.statement)
+    ]
+    lines = [
+        "A definitive conclusion cannot be made from the available evidence.",
+        "",
+        "Verified findings:",
+    ]
+    lines.extend(f"- {statement}" for statement in safe_findings)
+    if not safe_findings:
+        lines.append("- No verified finding is sufficient to support a conclusion.")
+    lines.extend(["", "Limitations:"])
+    for limitation in limitations:
+        if blocked_narrative_violations(limitation.text):
+            lines.append(f"- A {limitation.category} limitation prevents a conclusion.")
+        else:
+            lines.append(f"- {limitation.text}")
+    lines.extend(["", "Additional evidence is required before identifying a driver or taking action."])
+    return "\n".join(lines)
