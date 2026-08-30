@@ -20,6 +20,7 @@ from app.tools import (
     forecasting,
     hypothesis,
     insights,
+    mix_decomposition,
     profiler,
     regression,
     regression_diagnostics,
@@ -661,6 +662,44 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             },
         },
     },
+    # --- Mix Decomposition Engine (mix_decomposition.py) ---
+    {
+        "type": "function",
+        "function": {
+            "name": "mix_decomposition",
+            "description": (
+                "Decomposes the change in a metric's PER-ROW AVERAGE (per-unit/per-order) between two "
+                "date periods into a composition/mix effect (the segment breakdown shifted), a "
+                "within-segment effect (each segment's own average changed), and an interaction/residual "
+                "term -- the exact question 'is this because the mix changed, or because performance "
+                "within segments changed?'. Descriptive only: never establishes what caused either "
+                "effect, and reports an explicit reconciliation check plus sample counts and excluded "
+                "segments (too few rows, or missing from one period) rather than fabricating coverage."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date_column": {"type": "string"},
+                    "value_column": {"type": "string", "description": "The numeric per-row metric to decompose (its MEAN is used, not its sum)."},
+                    "segment_column": {"type": "string", "description": "The categorical dimension whose mix/composition might have shifted (e.g. plan, region, channel)."},
+                    "current_start": {"type": "string", "description": "ISO date, e.g. 2025-01-01"},
+                    "current_end": {"type": "string"},
+                    "previous_start": {"type": "string"},
+                    "previous_end": {"type": "string"},
+                    "filters": FILTERS_SCHEMA,
+                },
+                "required": [
+                    "date_column",
+                    "value_column",
+                    "segment_column",
+                    "current_start",
+                    "current_end",
+                    "previous_start",
+                    "previous_end",
+                ],
+            },
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -797,6 +836,7 @@ _HANDLERS: dict[str, Callable[..., dict[str, Any]]] = {
     "run_sql_query": lambda record, **p: _run_sql_query(record, **p),
     "explain_sql_query": lambda record, **p: _explain_sql_query(record, **p),
     "contribution_analysis": lambda record, **p: business_diagnosis.contribution_analysis(record.df, **p),
+    "mix_decomposition": lambda record, **p: mix_decomposition.mix_decomposition(record.df, **p),
     "executive_summary": lambda record, **p: business_diagnosis.executive_summary(record.df, **p),
     "duplicate_analysis": lambda record, **p: data_quality.duplicate_analysis(record.df, **p),
     "data_quality_report": lambda record, **p: data_quality.data_quality_report(record.df, **p),

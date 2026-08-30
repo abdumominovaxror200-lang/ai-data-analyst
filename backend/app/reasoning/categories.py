@@ -88,6 +88,7 @@ TOOL_CATEGORY_MAP: dict[str, ToolCategory] = {
     "generate_business_insights": ToolCategory.GENERAL_ANALYSIS,
     "generate_report": ToolCategory.GENERAL_ANALYSIS,
     "contribution_analysis": ToolCategory.GENERAL_ANALYSIS,
+    "mix_decomposition": ToolCategory.GENERAL_ANALYSIS,
     "executive_summary": ToolCategory.GENERAL_ANALYSIS,
     "correlation_heatmap_data": ToolCategory.GENERAL_ANALYSIS,
     "boxplot_data": ToolCategory.GENERAL_ANALYSIS,
