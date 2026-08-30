@@ -9,7 +9,18 @@ import type {
   UploadResponse,
 } from "../types";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
+function normalizeApiBase(rawValue: string): string {
+  const value = rawValue.trim().replace(/^Value:\s*/i, "").replace(/\/+$/, "");
+  if (value.startsWith("/")) return value;
+
+  const url = new URL(value);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("VITE_API_BASE_URL must use http or https");
+  }
+  return value;
+}
+
+const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api");
 
 export const api = axios.create({ baseURL: API_BASE });
 
