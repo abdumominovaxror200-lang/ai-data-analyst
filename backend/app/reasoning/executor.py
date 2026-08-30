@@ -69,14 +69,35 @@ class FilteredToolRouter:
         return self._base.execute(name, record, params)
 
 
+class ExactToolRouter:
+    """Recovery router exposing only validated, explicitly missing tools."""
+
+    def __init__(self, base: ToolRouter, tool_names: list[str]) -> None:
+        requested = set(tool_names)
+        self._base = base
+        self._schemas = [
+            schema for schema in base.available_tools()
+            if schema["function"]["name"] in requested
+        ]
+        self._allowed = {schema["function"]["name"] for schema in self._schemas}
+
+    def available_tools(self) -> list[dict]:
+        return self._schemas
+
+    def execute(self, name: str, record: DatasetRecord, params: dict) -> dict:
+        if name not in self._allowed:
+            raise ToolExecutionError(f"Tool '{name}' is not an exact recovery target.")
+        return self._base.execute(name, record, params)
+
+
 def execute_plan(
     provider: LLMProvider,
     record: DatasetRecord,
     question_text: str,
     plan: AnalysisPlan,
     base_router: ToolRouter | None = None,
-) -> tuple[list[Evidence], str]:
-    """Returns (evidence, raw_agent_narrative). The narrative is an internal,
+) -> tuple[list[Evidence], str, list[str]]:
+    """Returns (evidence, raw_agent_narrative, attempted_tool_names). The narrative is an internal,
     intermediate summary from the tool-gathering pass -- the reasoning layer's own
     `synthesizer.py` produces the text actually shown to the user, not this."""
     router = FilteredToolRouter(base_router or ToolRouter(), plan.capability_categories)
@@ -86,7 +107,35 @@ def execute_plan(
     result = agent.ask(record, prompt)
 
     evidence = [_to_evidence(i, call) for i, call in enumerate(result["tool_calls"])]
-    return evidence, result["answer"] or ""
+    return evidence, result["answer"] or "", list(result.get("tool_attempts") or [])
+
+
+def execute_recovery(
+    provider: LLMProvider,
+    record: DatasetRecord,
+    question_text: str,
+    missing_tools: list[str],
+    base_router: ToolRouter | None = None,
+    *,
+    evidence_offset: int = 0,
+) -> tuple[list[Evidence], list[str]]:
+    """Run one bounded recovery pass exposing only the exact missing tools."""
+    if not missing_tools:
+        return [], []
+    targets = set(missing_tools)
+    agent = DataAnalystAgent(provider, tool_router=ExactToolRouter(base_router or ToolRouter(), missing_tools))
+    result = agent.ask(
+        record,
+        f"Coverage recovery for: {question_text}\n"
+        f"Call only the exact missing required tool(s): {', '.join(missing_tools)}. "
+        "Do not substitute another tool. If one cannot produce valid evidence, state that clearly.",
+    )
+    evidence = [
+        _to_evidence(evidence_offset + index, call)
+        for index, call in enumerate(result["tool_calls"])
+        if call.tool in targets
+    ]
+    return evidence, list(result.get("tool_attempts") or [])
 
 
 def _build_execution_prompt(question_text: str, plan: AnalysisPlan) -> str:

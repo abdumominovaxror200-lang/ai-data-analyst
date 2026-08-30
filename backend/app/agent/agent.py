@@ -126,6 +126,7 @@ class DataAnalystAgent:
         messages.append({"role": "user", "content": question})
 
         tool_call_records: list[ToolCallRecord] = []
+        tool_attempts: list[str] = []
         charts: list[dict] = []
         seen_calls: dict[str, dict] = {}  # signature -> result, for duplicate-call detection
 
@@ -136,6 +137,7 @@ class DataAnalystAgent:
                 return {
                     "answer": response.content or "I couldn't generate an answer.",
                     "tool_calls": tool_call_records,
+                    "tool_attempts": tool_attempts,
                     "charts": charts,
                 }
 
@@ -178,6 +180,7 @@ class DataAnalystAgent:
                     )
                     logger.info("duplicate_tool_call tool=%s params=%s", call.name, call.arguments)
                 else:
+                    tool_attempts.append(call.name)
                     try:
                         result = self._router.execute(call.name, record, call.arguments)
                         seen_calls[signature] = result
@@ -228,6 +231,7 @@ class DataAnalystAgent:
                 return {
                     "answer": final.content or "I couldn't generate an answer.",
                     "tool_calls": tool_call_records,
+                    "tool_attempts": tool_attempts,
                     "charts": charts,
                 }
 
@@ -237,5 +241,6 @@ class DataAnalystAgent:
                 "Try asking a more specific follow-up question."
             ),
             "tool_calls": tool_call_records,
+            "tool_attempts": tool_attempts,
             "charts": charts,
         }

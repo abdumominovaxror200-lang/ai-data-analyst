@@ -32,6 +32,7 @@ from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
 from app.reasoning import confound_detection, contradiction_detection, epistemic_checks, executor, hypothesis_evaluator, planner, question_parser, verifier
 from app.reasoning.analytical_audit import build_analytical_audit
+from app.reasoning.coverage import CoverageAssessment, assess_coverage
 from app.reasoning.contracts import AnalysisResult, Finding, Limitation
 from app.reasoning.premise_validator import validate_question
 from app.reasoning.recommendation_grounding import evaluate_recommendation_grounding
@@ -45,6 +46,7 @@ class ReasoningOrchestrator:
     def __init__(self, provider: LLMProvider, tool_router: ToolRouter | None = None) -> None:
         self._provider = provider
         self._router = tool_router or ToolRouter()
+        self.last_coverage: CoverageAssessment | None = None
 
     def analyze(self, record: DatasetRecord, question_text: str) -> AnalysisResult:
         trace: list[str] = []
@@ -72,10 +74,49 @@ class ReasoningOrchestrator:
             return self._stop_unavailable_capability(question, claims, plan, limitations, trace)
 
         # --- execute: existing agent/tool_router loop, unmodified ---
-        evidence, _raw_narrative = executor.execute_plan(
+        evidence, _raw_narrative, executed_tools = executor.execute_plan(
             self._provider, record, question_text, plan, self._router
         )
         trace.append(f"execution: {len(evidence)} evidence item(s) gathered")
+
+        if question.intent == "diagnostic":
+            initial_coverage = assess_coverage(
+                question, plan, evidence,
+                date_columns=_profile["date_columns"], executed_tools=executed_tools,
+                recovery_finished=False,
+            )
+            if initial_coverage.recovery_targets:
+                trace.append("coverage recovery targets: " + ", ".join(initial_coverage.recovery_targets))
+                recovered, recovery_attempts = executor.execute_recovery(
+                    self._provider, record, question_text, initial_coverage.recovery_targets,
+                    self._router, evidence_offset=len(evidence),
+                )
+                evidence = evidence + recovered
+                executed_tools = executed_tools + recovery_attempts
+                trace.append(f"coverage recovery: {len(recovered)} evidence item(s) gathered")
+            self.last_coverage = assess_coverage(
+                question, plan, evidence,
+                date_columns=_profile["date_columns"], executed_tools=executed_tools,
+                recovery_finished=True,
+            )
+            trace.extend(
+                f"tool coverage: {item.tool_name}={item.stage} ({item.reason})"
+                for item in self.last_coverage.tools
+            )
+            if not self.last_coverage.complete:
+                gap = self.last_coverage.gap_explanation()
+                limitations = limitations + [Limitation(
+                    category="insufficient_coverage",
+                    text="Required RCA coverage is unresolved: " + gap,
+                    severity="blocks_conclusion",
+                )]
+                trace.append("coverage blocked: " + gap)
+        else:
+            self.last_coverage = assess_coverage(
+                question, plan, evidence,
+                date_columns=_profile["date_columns"], executed_tools=executed_tools,
+                recovery_finished=False,
+            )
         if not evidence:
             limitations = limitations + [
                 Limitation(
@@ -132,6 +173,11 @@ class ReasoningOrchestrator:
 
         # --- deterministic (Phase 4 P0): cap recommendation confidence at what the
         # evidence actually supports -- never trust the LLM's own stated confidence.
+        if question.intent == "diagnostic" and self.last_coverage and not self.last_coverage.complete:
+            if recommendation is not None:
+                trace.append("recommendation withheld: required RCA coverage is unresolved")
+            recommendation = None
+
         grounding = None
         if recommendation is not None:
             grounding = evaluate_recommendation_grounding(recommendation, findings, evidence, hypotheses, limitations)
