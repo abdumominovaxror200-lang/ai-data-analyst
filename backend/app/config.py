@@ -29,7 +29,9 @@ class Settings(BaseSettings):
     max_rows: int = 500_000
     storage_dir: str = str(BACKEND_DIR / "storage")
     log_level: str = "INFO"
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = (
+        "http://localhost:5173,https://ai-data-analyst-wine-mu.vercel.app"
+    )
 
     @property
     def max_upload_bytes(self) -> int:
