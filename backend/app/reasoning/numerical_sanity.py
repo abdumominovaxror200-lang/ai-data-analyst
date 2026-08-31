@@ -34,6 +34,7 @@ this module has no way to know.
 from __future__ import annotations
 
 from app.reasoning.contracts import Evidence, Limitation
+from app.datasets.metric_registry import MetricRegistry
 
 # MAPE (mean absolute percentage error) and any other genuinely unbounded percentage
 # metric can legitimately exceed 100% -- never flagged by the impossible-percentage rule.
@@ -266,7 +267,28 @@ def _find_unusual_baseline_window(evidence: list[Evidence]) -> list[Limitation]:
     return limitations
 
 
-def check_numerical_sanity(evidence: list[Evidence]) -> list[Limitation]:
+def check_metric_denominators(evidence: list[Evidence], registry: MetricRegistry | None) -> list[Limitation]:
+    if registry is None:
+        return []
+    limitations: list[Limitation] = []
+    seen: set[str] = set()
+    for index, item in enumerate(evidence):
+        if not item.metric or item.metric in seen:
+            continue
+        definition = registry.definition_for(item.metric)
+        if definition is None or definition.kind not in ("rate", "ratio") or definition.status == "resolved":
+            continue
+        seen.add(item.metric)
+        limitations.append(Limitation(
+            category="methodological", severity="blocks_conclusion",
+            text=(f"Metric '{item.metric}' is a derived rate/ratio without a verified denominator. "
+                  "Define its numerator, denominator, aggregation, and eligible population before drawing a conclusion."),
+            affected_findings=[f"finding_{index}"],
+        ))
+    return limitations
+
+
+def check_numerical_sanity(evidence: list[Evidence], metric_registry: MetricRegistry | None = None) -> list[Limitation]:
     """Runs all numerical-sanity rules against already-gathered evidence. Additive to
     (never a replacement for) verifier.py's existing outlier/sample-size/cross-check
     limitations -- called from build_findings alongside them."""
@@ -276,4 +298,5 @@ def check_numerical_sanity(evidence: list[Evidence]) -> list[Limitation]:
         + _find_group_magnitude_outliers(evidence)
         + _find_group_size_imbalance(evidence)
         + _find_unusual_baseline_window(evidence)
+        + check_metric_denominators(evidence, metric_registry)
     )

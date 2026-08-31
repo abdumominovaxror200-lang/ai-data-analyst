@@ -38,6 +38,7 @@ from app.reasoning.conclusion_guard import sanitize_blocked_hypotheses
 from app.reasoning.contracts import AnalysisResult, Finding, Limitation
 from app.reasoning.premise_validator import validate_question
 from app.reasoning.recommendation_grounding import evaluate_recommendation_grounding
+from app.reasoning.numerical_sanity import check_metric_denominators
 from app.reasoning.synthesizer import synthesize
 from app.tools.profiler import profile_dataset
 
@@ -133,6 +134,7 @@ class ReasoningOrchestrator:
 
         # --- deterministic: validate results, cross-check, classify findings ---
         findings, verifier_limitations = verifier.build_findings(evidence)
+        verifier_limitations = verifier_limitations + check_metric_denominators(evidence, record.metrics)
         limitations = limitations + verifier_limitations
         trace.append(
             f"findings: {len(findings)}, cross-checked: {sum(1 for f in findings if f.cross_checked)}"

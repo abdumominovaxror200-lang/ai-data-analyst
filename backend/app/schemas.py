@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from app.reasoning.contracts import DataCaveats
+from app.datasets.metric_registry import MetricDefinition
 
 
 class ColumnInfo(BaseModel):
@@ -32,6 +33,7 @@ class DatasetProfile(BaseModel):
     duplicate_rows: int
     date_ranges: dict[str, dict[str, str]] = Field(default_factory=dict)
     uploaded_at: datetime
+    metrics: list[MetricDefinition] = Field(default_factory=list)
 
 
 class UploadResponse(BaseModel):

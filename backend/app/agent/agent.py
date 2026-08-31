@@ -8,6 +8,7 @@ from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
 from app.data_quality_gate import evaluate_data_quality
 from app.schemas import ToolCallRecord
+from app.reasoning.contracts import Limitation
 from app.tools.errors import ToolExecutionError
 from app.tools.profiler import profile_dataset
 
@@ -113,6 +114,21 @@ class DataAnalystAgent:
                 "charts": [],
                 "data_caveats": data_caveats,
                 "limitations": quality_limitations,
+            }
+        unresolved_metrics = [
+            definition for definition in record.metrics.public_definitions()
+            if definition.status == "needs_definition" and definition.name.lower() in question.lower()
+        ] if record.metrics else []
+        if unresolved_metrics:
+            names = ", ".join(definition.name for definition in unresolved_metrics)
+            limitation = Limitation(
+                category="methodological", severity="blocks_conclusion",
+                text=f"Derived metric(s) {names} need an explicit numerator, denominator, aggregation, and eligible population.",
+            )
+            return {
+                "answer": f"Before analyzing {names}, please define its numerator, denominator, aggregation, and eligible population.",
+                "tool_calls": [], "tool_attempts": [], "charts": [],
+                "data_caveats": data_caveats, "limitations": quality_limitations + [limitation],
             }
         profile = profile_dataset(record.df)
         date_coverage = ", ".join(
