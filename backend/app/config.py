@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     )
 
     llm_provider: str = "openai_compatible"
+    # Explicit egress policy. Hosted deployments keep LLM functionality, but all
+    # provider-bound dataset context is sanitized and aliased by default.
+    llm_egress_mode: str = "external_redacted"
     llm_api_key: str = ""
     llm_base_url: str = "https://api.openai.com/v1"
     llm_model: str = "gpt-4o-mini"

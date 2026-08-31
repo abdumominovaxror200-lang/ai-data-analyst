@@ -22,7 +22,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     try:
-        provider = build_provider_from_settings()
+        provider = build_provider_from_settings(record.df)
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=f"AI provider not configured: {exc}") from exc
 

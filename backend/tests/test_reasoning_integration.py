@@ -59,7 +59,7 @@ def _patch_provider(monkeypatch, script: list[ProviderResponse]) -> list[MockPro
     reference any other way without changing the route's signature)."""
     created: list[MockProvider] = []
 
-    def _factory():
+    def _factory(_dataset=None):
         provider = MockProvider(script)
         created.append(provider)
         return provider
@@ -353,7 +353,7 @@ def test_existing_chat_endpoint_still_works_unmodified(client, sample_df, monkey
     from app.agent.providers import MockProvider as _MP
     from app.agent.providers import ProviderResponse as _PR
 
-    monkeypatch.setattr("app.api.routes_chat.build_provider_from_settings", lambda: _MP([_PR(content="A plain chat answer.")]))
+    monkeypatch.setattr("app.api.routes_chat.build_provider_from_settings", lambda _dataset=None: _MP([_PR(content="A plain chat answer.")]))
 
     files = {"file": ("sales.csv", make_csv_bytes(sample_df), "text/csv")}
     dataset_id = client.post("/api/datasets/upload", files=files).json()["dataset_id"]
@@ -371,7 +371,7 @@ def test_both_chat_and_reason_endpoints_work_against_the_same_dataset(client, sa
     files = {"file": ("sales.csv", make_csv_bytes(sample_df), "text/csv")}
     dataset_id = client.post("/api/datasets/upload", files=files).json()["dataset_id"]
 
-    monkeypatch.setattr("app.api.routes_chat.build_provider_from_settings", lambda: _MP([_PR(content="chat path answer")]))
+    monkeypatch.setattr("app.api.routes_chat.build_provider_from_settings", lambda _dataset=None: _MP([_PR(content="chat path answer")]))
     chat_response = client.post("/api/chat", json={"dataset_id": dataset_id, "message": "hi"})
     assert chat_response.status_code == 200
     assert chat_response.json()["answer"] == "chat path answer"
