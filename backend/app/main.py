@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,7 @@ from fastapi.responses import JSONResponse
 from app.api import routes_analysis, routes_chat, routes_datasets, routes_health, routes_reasoning, routes_reports
 from app.config import get_settings
 from app.datasets.validation import ValidationError
+from app.datasets.storage import get_dataset_store
 from app.logging_config import configure_logging, new_request_id, request_id_var
 from app.tools.errors import ToolExecutionError
 
@@ -17,7 +19,24 @@ settings = get_settings()
 configure_logging(settings.log_level)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="AI Data Analyst API", version="0.1.0")
+
+def validate_deployment_policy(config) -> None:
+    if config.deployment == "public" and config.llm_egress_mode == "local_only":
+        raise RuntimeError(
+            "DEPLOYMENT=public cannot use LLM_EGRESS_MODE=local_only; "
+            "a public backend must use external_redacted or llm_disabled."
+        )
+    if config.deployment == "public" and config.llm_egress_mode == "external_redacted":
+        logger.info("public deployment privacy policy active: raw-value LLM egress is disabled")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    validate_deployment_policy(settings)
+    get_dataset_store().sweep_expired()
+    yield
+
+app = FastAPI(title="AI Data Analyst API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

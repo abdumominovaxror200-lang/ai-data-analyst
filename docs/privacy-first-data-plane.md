@@ -16,6 +16,16 @@ The default is `external_redacted` so an existing hosted deployment remains
 functional while adopting the safe boundary. Operators should set the variable
 explicitly; raw-value external egress is no longer a supported mode.
 
+Set `DEPLOYMENT=self_host` for local/private installations or
+`DEPLOYMENT=public` for an internet-facing backend. A public deployment cannot
+use `local_only`; startup fails because a public service cannot safely claim a
+loopback/private model endpoint. Public `external_redacted` startup records that
+raw-value LLM egress is disabled.
+
+Uploaded datasets are process-local and expire after `DATASET_TTL_MINUTES`
+(default: 240). Expired records and their validated server-owned upload files
+are removed on access and during lightweight store sweeps.
+
 ## Local OpenAI-compatible servers
 
 Ollama example (installation and model management are intentionally external to
