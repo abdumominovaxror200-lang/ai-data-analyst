@@ -136,6 +136,8 @@ def _cross_check(evidence: list[Evidence]) -> tuple[set[str], list[Limitation]]:
             continue
         base_e, base_p = points[0]
         for e, p in points[1:]:
+            if not _same_evidence_scope(base_e, e):
+                continue
             denom = max(abs(base_p), abs(p), 1e-9)
             if abs(p - base_p) / denom <= _CROSS_CHECK_RELATIVE_TOLERANCE:
                 corroborated.add(base_e.id)
@@ -152,6 +154,15 @@ def _cross_check(evidence: list[Evidence]) -> tuple[set[str], list[Limitation]]:
                     )
                 )
     return corroborated, limitations
+
+
+def _same_evidence_scope(left: Evidence, right: Evidence) -> bool:
+    """Legacy unscoped records remain comparable; typed mismatches never corroborate."""
+    if left.scope is None and right.scope is None:
+        return left.population == right.population and left.time_coverage == right.time_coverage
+    if left.scope is None or right.scope is None:
+        return False
+    return left.scope.model_dump(mode="json") == right.scope.model_dump(mode="json")
 
 
 # Verification-style tools and how to read "this tool found no DISQUALIFYING problem"
@@ -201,12 +212,12 @@ def _investigation_cross_check(evidence: list[Evidence]) -> set[str]:
     computed the same number" check, which remains unchanged and still catches genuine
     numeric disagreements `_investigation_cross_check` cannot see."""
     corroborated: set[str] = set()
-    by_metric: dict[str, list[Evidence]] = {}
+    by_metric_and_scope: dict[tuple[str, str], list[Evidence]] = {}
     for e in evidence:
         if e.metric:
-            by_metric.setdefault(e.metric, []).append(e)
+            by_metric_and_scope.setdefault((e.metric, _scope_key(e)), []).append(e)
 
-    for items in by_metric.values():
+    for items in by_metric_and_scope.values():
         distinct_tools = {e.source_tool: e for e in items}
         if len(distinct_tools) < 2:
             continue
@@ -219,6 +230,12 @@ def _investigation_cross_check(evidence: list[Evidence]) -> set[str]:
         if verification_ran_clean and other_analytical:
             corroborated.update(e.id for e in distinct_tools.values())
     return corroborated
+
+
+def _scope_key(evidence: Evidence) -> str:
+    if evidence.scope is not None:
+        return evidence.scope.model_dump_json(exclude_none=False)
+    return f"legacy:{evidence.population!r}:{evidence.time_coverage!r}"
 
 
 def _describe_data_outlier_limitations(evidence: list[Evidence]) -> list[Limitation]:

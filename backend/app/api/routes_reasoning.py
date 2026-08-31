@@ -73,6 +73,7 @@ def reason(request: ReasonRequest) -> ReasonResponse:
                 metric=e.metric,
                 result_summary=e.result_summary,
                 population=e.population,
+                scope=e.scope.model_dump(mode="json") if e.scope else None,
                 sample_size=e.sample_size,
             )
             for e in result.evidence

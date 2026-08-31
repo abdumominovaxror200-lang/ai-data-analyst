@@ -14,7 +14,7 @@ from app.agent.providers import LLMProvider
 from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
 from app.reasoning.categories import filtered_tool_schemas
-from app.reasoning.contracts import AnalysisPlan, Evidence
+from app.reasoning.contracts import AnalysisPlan, Evidence, EvidenceScope, TemporalEvidenceScope
 from app.schemas import ToolCallRecord
 from app.tools.errors import ToolExecutionError
 
@@ -190,6 +190,29 @@ def _guess_population(call: ToolCallRecord) -> str | None:
     return " AND ".join(parts) if parts else None
 
 
+def _evidence_scope(call: ToolCallRecord) -> EvidenceScope:
+    params = call.params or {}
+    def normalized_filters(key: str) -> list[dict]:
+        raw = params.get(key)
+        return [dict(item) for item in raw if isinstance(item, dict)] if isinstance(raw, list) else []
+
+    filters = normalized_filters("filters")
+    current_filters = normalized_filters("current_filters")
+    previous_filters = normalized_filters("previous_filters") or normalized_filters("baseline_filters")
+    comparison_groups = {
+        key: params[key] for key in ("group_column", "group_a", "group_b") if params.get(key) is not None
+    }
+    temporal = None
+    period_keys = ("current_start", "current_end", "previous_start", "previous_end")
+    if any(params.get(key) is not None for key in period_keys):
+        temporal = TemporalEvidenceScope(**{key: params.get(key) for key in period_keys})
+    return EvidenceScope(
+        population=_guess_population(call), filters=filters,
+        current_filters=current_filters, previous_filters=previous_filters,
+        comparison_groups=comparison_groups, temporal=temporal,
+    )
+
+
 def _guess_sample_size(result: dict) -> int | None:
     for key in ("n", "n_observations", "n_rows_used", "row_count", "total_rows", "n_customers"):
         value = result.get(key)
@@ -213,6 +236,7 @@ def _to_evidence(index: int, call: ToolCallRecord) -> Evidence:
         metric=_guess_metric(call),
         result_summary=_bounded_summary(result),
         population=_guess_population(call),
+        scope=_evidence_scope(call),
         sample_size=_guess_sample_size(result),
         tool_call_ref=f"tool_call[{index}]",
     )

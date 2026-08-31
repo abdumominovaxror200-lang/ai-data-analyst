@@ -121,7 +121,27 @@ class EvidenceOut(BaseModel):
     metric: str | None = None
     result_summary: dict[str, Any] = Field(default_factory=dict)
     population: str | None = None
+    scope: "EvidenceScopeOut | None" = None
     sample_size: int | None = None
+
+
+class TemporalEvidenceScopeOut(BaseModel):
+    current_start: str | None = None
+    current_end: str | None = None
+    previous_start: str | None = None
+    previous_end: str | None = None
+
+
+class EvidenceScopeOut(BaseModel):
+    population: str | None = None
+    filters: list[dict[str, Any]] = Field(default_factory=list)
+    current_filters: list[dict[str, Any]] = Field(default_factory=list)
+    previous_filters: list[dict[str, Any]] = Field(default_factory=list)
+    comparison_groups: dict[str, Any] = Field(default_factory=dict)
+    temporal: TemporalEvidenceScopeOut | None = None
+
+
+EvidenceOut.model_rebuild()
 
 
 class FindingOut(BaseModel):

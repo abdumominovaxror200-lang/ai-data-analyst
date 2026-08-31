@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from app.reasoning.categories import TOOL_CATEGORY_MAP, ToolCategory, tool_names_for_categories
-from app.reasoning.contracts import AnalysisPlan, AnalyticalQuestion, Evidence
+from app.reasoning.contracts import AnalysisPlan, AnalyticalQuestion, Evidence, TemporalEvidenceScope
 
 CoverageStage = Literal["planned", "selected", "executed", "evidenced", "unavailable"]
 # "mix_decomposition" (Mix Decomposition Engine Phase 2): a question that asks to
@@ -98,6 +99,7 @@ def assess_coverage(
     evidence: list[Evidence],
     *,
     date_columns: list[str],
+    categorical_columns: list[str] | None = None,
     executed_tools: list[str],
     recovery_finished: bool,
 ) -> CoverageAssessment:
@@ -180,7 +182,7 @@ def assess_coverage(
         if item.obligation == "required_analytical"
         or (item.obligation == "conditional_data_quality" and item.tool_name in unresolved_tools)
     ]
-    requirements = _requirements(question, required_tools, evidence, date_columns, plan)
+    requirements = _requirements(question, required_tools, evidence, date_columns, categorical_columns or [], plan)
     unresolved_requirements = [
         f"{item.kind}{f'({item.dimension})' if item.dimension else ''}"
         for item in requirements if not item.supported
@@ -199,13 +201,15 @@ def _requirements(
     planned_tools: list[str],
     evidence: list[Evidence],
     date_columns: list[str],
+    categorical_columns: list[str],
     plan: AnalysisPlan,
 ) -> list[AnalyticalRequirement]:
     requirements: list[AnalyticalRequirement] = []
     normalized_dates = {_normalize(item) for item in date_columns}
     temporal_planned = [tool for tool in planned_tools if tool in _TEMPORAL_TOOLS]
     if question.requested_time_range or temporal_planned:
-        supporting = [item.id for item in evidence if _covers_temporal(item, normalized_dates)]
+        requested_scope = _requested_temporal_scope(question.requested_time_range)
+        supporting = [item.id for item in evidence if _covers_temporal(item, normalized_dates, requested_scope)]
         requirements.append(AnalyticalRequirement(
             kind="temporal", required_tools=temporal_planned, supported=bool(supporting),
             supporting_evidence=supporting,
@@ -213,8 +217,14 @@ def _requirements(
                     else "No evidence uses a temporal tool or the dataset's date dimension."),
         ))
 
+    normalized_categories = {_normalize(item) for item in categorical_columns}
     for dimension in question.requested_dimensions:
         if _normalize(dimension) in normalized_dates:
+            continue
+        # Segment coverage is meaningful only for schema-confirmed categorical
+        # dimensions. Numeric explanatory variables remain candidates for
+        # statistical analysis and never become mandatory segment obligations.
+        if _normalize(dimension) not in normalized_categories:
             continue
         supporting = [item.id for item in evidence if _covers_segment(item, dimension)]
         requirements.append(AnalyticalRequirement(
@@ -352,13 +362,39 @@ def _optional_reason(obligation: ObligationKind) -> str:
     return "The tool supports presentation or non-essential analysis and cannot block a conclusion."
 
 
-def _covers_temporal(evidence: Evidence, date_columns: set[str]) -> bool:
+def _covers_temporal(
+    evidence: Evidence,
+    date_columns: set[str],
+    requested_scope: TemporalEvidenceScope | None,
+) -> bool:
+    if requested_scope is not None:
+        actual = evidence.scope.temporal if evidence.scope else None
+        return actual is not None and actual.model_dump() == requested_scope.model_dump()
     if evidence.source_tool in _TEMPORAL_TOOLS:
         return True
     group_by = evidence.result_summary.get("group_by")
     if isinstance(group_by, str) and _normalize(group_by) in date_columns:
         return True
     return any(_population_mentions(evidence.population, column) for column in date_columns)
+
+
+def _requested_temporal_scope(value: str | None) -> TemporalEvidenceScope | None:
+    """Parse only unambiguous two-period requests; unknown prose stays legacy-compatible."""
+    if not value:
+        return None
+    text = value.strip()
+    ranges = re.findall(r"(\d{4}-\d{2}-\d{2})\s*(?:\.\.|to|through|–|—)\s*(\d{4}-\d{2}-\d{2})", text, re.I)
+    if len(ranges) == 2:
+        current, previous = ranges[0], ranges[1]
+        return TemporalEvidenceScope(current_start=current[0], current_end=current[1], previous_start=previous[0], previous_end=previous[1])
+    h2_years = re.findall(r"H2\s*(20\d{2})", text, re.I)
+    if len(h2_years) == 2:
+        current, previous = h2_years[0], h2_years[1]
+        return TemporalEvidenceScope(
+            current_start=f"{current}-07-01", current_end=f"{current}-12-31",
+            previous_start=f"{previous}-07-01", previous_end=f"{previous}-12-31",
+        )
+    return None
 
 
 def _covers_segment(evidence: Evidence, dimension: str) -> bool:
