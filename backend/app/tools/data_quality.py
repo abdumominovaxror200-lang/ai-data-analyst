@@ -193,7 +193,13 @@ def duplicate_analysis(
     # duplicate purposes); sort=False preserves first-appearance order so
     # the subsequent stable sort-by-size ties break deterministically on
     # original row order.
-    grouped = list(dup_df.groupby(dup_cols, dropna=False, sort=False))
+    # pandas can raise ``Categorical categories cannot be null`` when grouping a
+    # single all-null duplicate key. Build collision-free in-memory tuple keys
+    # with a private sentinel, while retaining the original values for output.
+    null_sentinel = object()
+    normalized = dup_df[dup_cols].astype(object).where(dup_df[dup_cols].notna(), null_sentinel)
+    group_keys = normalized.apply(lambda row: tuple(row.tolist()), axis=1)
+    grouped = list(dup_df.groupby(group_keys, sort=False))
     grouped.sort(key=lambda kv: -len(kv[1]))  # largest group first; stable for ties
 
     duplicate_group_count = len(grouped)
@@ -202,8 +208,8 @@ def duplicate_analysis(
     key_records: list[dict] = []
     occurrences: list[int] = []
     row_indices: list[list[object]] = []
-    for key, sub_df in sample:
-        key_dict = {dup_cols[0]: key} if len(dup_cols) == 1 else dict(zip(dup_cols, key))
+    for _key, sub_df in sample:
+        key_dict = sub_df.iloc[0][dup_cols].to_dict()
         key_records.append(key_dict)
         occurrences.append(int(len(sub_df)))
         row_indices.append([_row_index_to_json_safe(i) for i in sub_df.index.tolist()])

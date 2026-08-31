@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { apiErrorMessage, sendChatMessage } from "../../api/client";
-import type { ChartData, ChatMessage, DatasetProfile, ToolCallRecord } from "../../types";
+import type { ChartData, ChatMessage, DataCaveats, DatasetProfile, LimitationOut, ToolCallRecord } from "../../types";
+import { DataCaveatsCard } from "../DataCaveatsCard";
 import { ChartRenderer } from "../ChartRenderer";
 import { MarkdownMessage } from "../MarkdownMessage";
 import { Badge, Button, Card, Spinner } from "../primitives";
@@ -29,6 +30,8 @@ interface Turn extends ChatMessage {
   toolCalls?: ToolCallRecord[];
   charts?: ChartData[];
   error?: boolean;
+  dataCaveats?: DataCaveats;
+  limitations?: LimitationOut[];
 }
 
 export function ChatTab({ profile }: { profile: DatasetProfile }) {
@@ -56,7 +59,7 @@ export function ChatTab({ profile }: { profile: DatasetProfile }) {
     try {
       const history = turns.map(({ role, content }) => ({ role, content }));
       const res = await sendChatMessage(profile.dataset_id, message, history);
-      setTurns([...nextTurns, { role: "assistant", content: res.answer, toolCalls: res.tool_calls, charts: res.charts }]);
+      setTurns([...nextTurns, { role: "assistant", content: res.answer, toolCalls: res.tool_calls, charts: res.charts, dataCaveats: res.data_caveats, limitations: res.limitations }]);
     } catch (err) {
       const message = apiErrorMessage(err) || "Something went wrong while analyzing your data. Please try again.";
       setTurns([...nextTurns, { role: "assistant", content: message, error: true }]);
@@ -113,6 +116,8 @@ export function ChatTab({ profile }: { profile: DatasetProfile }) {
                   ))}
                 </div>
               )}
+
+              {turn.dataCaveats && <div className="mt-3"><DataCaveatsCard caveats={turn.dataCaveats} limitations={turn.limitations} /></div>}
 
               {!!turn.charts?.length && (
                 <div className="mt-3 grid grid-cols-1 gap-3">

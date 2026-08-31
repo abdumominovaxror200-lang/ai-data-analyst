@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+from app.reasoning.contracts import DataCaveats
 
 
 class ColumnInfo(BaseModel):
@@ -71,6 +72,8 @@ class ChatResponse(BaseModel):
     answer: str
     tool_calls: list[ToolCallRecord]
     charts: list[dict[str, Any]] = Field(default_factory=list)
+    data_caveats: DataCaveats
+    limitations: list["LimitationOut"] = Field(default_factory=list)
 
 
 class ReportRequest(BaseModel):
@@ -203,6 +206,7 @@ class ReasonResponse(BaseModel):
     evidence: list[EvidenceOut] = Field(default_factory=list)
     findings: list[FindingOut] = Field(default_factory=list)
     limitations: list[LimitationOut] = Field(default_factory=list)
+    data_caveats: DataCaveats
     hypotheses: list[HypothesisOut] = Field(default_factory=list)
     recommendation: RecommendationOut | None = None
     tools_used: list[str] = Field(default_factory=list)

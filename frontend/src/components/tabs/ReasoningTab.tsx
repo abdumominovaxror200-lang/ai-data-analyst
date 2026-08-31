@@ -12,6 +12,7 @@ import type {
   UncertaintyOut,
 } from "../../types";
 import { MarkdownMessage } from "../MarkdownMessage";
+import { DataCaveatsCard } from "../DataCaveatsCard";
 import { Badge, Button, Card, CardHeader, ErrorBanner, Spinner } from "../primitives";
 
 const SUGGESTIONS = [
@@ -183,6 +184,8 @@ function ReasoningResult({ response }: { response: ReasonResponse }) {
         </div>
         <MarkdownMessage content={response.answer} />
       </Card>
+
+      <DataCaveatsCard caveats={response.data_caveats} />
 
       {response.principle_violations.length > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-bad/40 bg-bad/10 px-3.5 py-2.5 text-sm text-bad">
