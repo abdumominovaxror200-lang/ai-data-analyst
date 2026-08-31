@@ -11,6 +11,7 @@ from app.schemas import (
     AnalyticalAuditOut,
     EvidenceOut,
     FindingOut,
+    FactOut,
     HypothesisOut,
     LimitationOut,
     ReasonRequest,
@@ -150,4 +151,5 @@ def reason(request: ReasonRequest) -> ReasonResponse:
             if result.analytical_audit
             else None
         ),
+        facts=[FactOut(**fact.model_dump()) for fact in result.fact_ledger.facts],
     )

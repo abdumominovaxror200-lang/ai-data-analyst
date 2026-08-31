@@ -40,6 +40,7 @@ from app.reasoning.premise_validator import validate_question
 from app.reasoning.recommendation_grounding import evaluate_recommendation_grounding
 from app.reasoning.numerical_sanity import check_metric_denominators
 from app.reasoning.synthesizer import synthesize
+from app.reasoning.fact_ledger import build_fact_ledger
 from app.tools.profiler import profile_dataset
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,9 @@ class ReasoningOrchestrator:
                     severity="reduces_confidence",
                 )
             ]
+
+        fact_ledger = build_fact_ledger(evidence)
+        trace.append(f"fact ledger: {len(fact_ledger.facts)} numeric fact(s) recorded")
 
         # --- deterministic: validate results, cross-check, classify findings ---
         findings, verifier_limitations = verifier.build_findings(evidence)
@@ -225,6 +229,7 @@ class ReasoningOrchestrator:
             hypotheses=hypotheses,
             limitations=limitations,
             data_caveats=data_caveats,
+            fact_ledger=fact_ledger,
             recommendation=recommendation,
             final_answer_text=final_text,
             reasoning_trace=trace,

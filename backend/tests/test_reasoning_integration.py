@@ -106,6 +106,10 @@ def test_reason_endpoint_full_round_trip(client, sample_df, monkeypatch):
     # 5. Final response returned to the user.
     assert body["answer"] == "Average revenue is summarized above."
     assert body["reasoning_trace"]
+    assert body["facts"]
+    assert all(fact["id"].startswith("fact_") and len(fact["source_hash"]) == 64 for fact in body["facts"])
+    synthesis_payload_text = json.dumps(created[0].calls[-1])
+    assert body["facts"][0]["id"] in synthesis_payload_text
 
 
 def test_reason_endpoint_exposes_real_computed_evidence_not_just_prose(client, sample_df, monkeypatch):

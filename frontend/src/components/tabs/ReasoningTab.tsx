@@ -187,6 +187,8 @@ function ReasoningResult({ response }: { response: ReasonResponse }) {
 
       <DataCaveatsCard caveats={response.data_caveats} />
 
+      <FactLedgerCard facts={response.facts} />
+
       {response.principle_violations.length > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-bad/40 bg-bad/10 px-3.5 py-2.5 text-sm text-bad">
           <span className="mt-0.5">⚑</span>
@@ -274,6 +276,34 @@ function ReasoningResult({ response }: { response: ReasonResponse }) {
         )}
       </div>
     </div>
+  );
+}
+
+function FactLedgerCard({ facts }: { facts: ReasonResponse["facts"] }) {
+  const download = (format: "json" | "csv") => {
+    const content = format === "json"
+      ? JSON.stringify({ facts }, null, 2)
+      : ["id,value,unit,tool,row_count,source_hash,result_path", ...facts.map((fact) =>
+          [fact.id, fact.value, fact.unit ?? "", fact.tool, fact.row_count ?? "", fact.source_hash, fact.result_path]
+            .map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","),
+        )].join("\n");
+    const url = URL.createObjectURL(new Blob([content], { type: format === "json" ? "application/json" : "text/csv" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `fact-ledger.${format}`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div><p className="text-sm font-medium text-ink-100">Fact ledger</p><p className="text-xs text-ink-400">{facts.length} traceable numeric facts</p></div>
+        <div className="flex gap-2"><Button onClick={() => download("json")}>JSON</Button><Button onClick={() => download("csv")}>CSV</Button></div>
+      </div>
+      {facts.length > 0 && <div className="mt-3 max-h-48 space-y-1 overflow-y-auto text-xs text-ink-300">
+        {facts.slice(0, 100).map((fact) => <p key={fact.id}><span className="font-mono text-accent">{fact.id}</span> — {fact.value}{fact.unit ? ` ${fact.unit}` : ""} · {fact.tool} · {fact.result_path}</p>)}
+      </div>}
+    </Card>
   );
 }
 
