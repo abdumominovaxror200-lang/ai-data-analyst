@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import logging
 import threading
 import uuid
@@ -11,13 +10,14 @@ from pathlib import Path
 import pandas as pd
 
 from app.config import get_settings
+from app.datasets.ingestion import IngestionNotice, parse_dataset
+from app.datasets.metric_registry import MetricRegistry
 from app.datasets.validation import (
     ValidationError,
     sanitize_display_name,
     validate_extension,
     validate_size,
 )
-from app.datasets.metric_registry import MetricRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +31,13 @@ class DatasetRecord:
     df: pd.DataFrame
     stored_path: str
     metrics: MetricRegistry | None = None
+    ingestion_notices: list[IngestionNotice] | None = None
 
     def __post_init__(self) -> None:
         if self.metrics is None:
             self.metrics = MetricRegistry.from_dataframe(self.df)
+        if self.ingestion_notices is None:
+            self.ingestion_notices = []
 
 
 class DatasetNotFoundError(Exception):
@@ -59,7 +62,8 @@ class DatasetStore:
         ext = validate_extension(filename)
         safe_name = sanitize_display_name(filename)
 
-        df = self._parse(content, ext)
+        parsed = parse_dataset(content, ext)
+        df = parsed.dataframe
         if len(df) > settings.max_rows:
             raise ValidationError(
                 f"Dataset has {len(df):,} rows, which exceeds the {settings.max_rows:,} row limit."
@@ -82,6 +86,7 @@ class DatasetStore:
             uploaded_at=datetime.now(timezone.utc),
             df=df,
             stored_path=str(stored_path),
+            ingestion_notices=parsed.notices,
         )
         with self._lock:
             self._records[dataset_id] = record
@@ -90,15 +95,8 @@ class DatasetStore:
 
     @staticmethod
     def _parse(content: bytes, ext: str) -> pd.DataFrame:
-        try:
-            if ext == ".csv":
-                df = pd.read_csv(io.BytesIO(content))
-            else:
-                df = pd.read_excel(io.BytesIO(content), engine="openpyxl")
-        except Exception as exc:  # noqa: BLE001 - surfaced to the caller as a clean 400
-            raise ValidationError(f"Could not parse file: {exc}") from exc
-
-        return _infer_datetime_columns(df)
+        """Backward-compatible parser entry point used by existing offline fixtures."""
+        return parse_dataset(content, ext).dataframe
 
     def get(self, dataset_id: str) -> DatasetRecord:
         self.sweep_expired()
@@ -152,18 +150,6 @@ def _delete_upload_file(record: DatasetRecord) -> None:
         candidate.unlink(missing_ok=True)
     except OSError:
         logger.warning("expired dataset file deletion failed id=%s", record.id)
-
-
-def _infer_datetime_columns(df: pd.DataFrame) -> pd.DataFrame:
-    for col in df.columns:
-        if df[col].dtype == object:
-            sample = df[col].dropna().head(20)
-            if sample.empty:
-                continue
-            parsed = pd.to_datetime(sample, errors="coerce", format="mixed")
-            if parsed.notna().mean() > 0.9:
-                df[col] = pd.to_datetime(df[col], errors="coerce", format="mixed")
-    return df
 
 
 _store: DatasetStore | None = None
