@@ -33,7 +33,7 @@ def test_temporal_grouping_cannot_satisfy_segment_coverage():
     assessment = assess_coverage(
         _question(dimensions=["region"], time_range="2024 vs 2025"),
         _plan("group_and_aggregate"), [_evidence("group_and_aggregate", 0, group_by="date")],
-        date_columns=["date"], executed_tools=["group_and_aggregate"], recovery_finished=True)
+        date_columns=["date"], categorical_columns=["region"], executed_tools=["group_and_aggregate"], recovery_finished=True)
     temporal = next(item for item in assessment.requirements if item.kind == "temporal")
     segment = next(item for item in assessment.requirements if item.kind == "segment")
     assert temporal.supported is True
@@ -77,7 +77,7 @@ def _run_stubbed(monkeypatch, sales_record, *, initial_evidence, recovery_eviden
     plan = _plan("compare_periods", "group_and_aggregate")
     monkeypatch.setattr(orchestrator_module.question_parser, "parse_question", lambda *_: (question, []))
     monkeypatch.setattr(orchestrator_module, "validate_question",
-                        lambda *_: ([], [], {"date_columns": ["date"]}))
+                        lambda *_: ([], [], {"date_columns": ["date"], "categorical_columns": ["region"]}))
     monkeypatch.setattr(orchestrator_module.planner, "plan_analysis", lambda *_: plan)
     monkeypatch.setattr(orchestrator_module.executor, "execute_plan",
                         lambda *_: (initial_evidence, "", [e.source_tool for e in initial_evidence]))
@@ -138,7 +138,7 @@ def test_existing_non_diagnostic_flow_does_not_trigger_rca_recovery(monkeypatch,
     plan, evidence = _plan("describe_data"), [_evidence("describe_data", 0)]
     monkeypatch.setattr(orchestrator_module.question_parser, "parse_question", lambda *_: (question, []))
     monkeypatch.setattr(orchestrator_module, "validate_question",
-                        lambda *_: ([], [], {"date_columns": ["date"]}))
+                        lambda *_: ([], [], {"date_columns": ["date"], "categorical_columns": ["region"]}))
     monkeypatch.setattr(orchestrator_module.planner, "plan_analysis", lambda *_: plan)
     monkeypatch.setattr(orchestrator_module.executor, "execute_plan",
                         lambda *_: (evidence, "", ["describe_data"]))

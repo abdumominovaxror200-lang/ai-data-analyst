@@ -68,7 +68,7 @@ def test_genuinely_missing_statistical_requirement_blocks():
 def test_genuinely_missing_segment_requirement_blocks():
     result = assess_coverage(
         _question(requested_dimensions=["channel"]), _plan("group_and_aggregate"), [],
-        date_columns=[], executed_tools=[], recovery_finished=True)
+        date_columns=[], categorical_columns=["channel"], executed_tools=[], recovery_finished=True)
     assert not result.complete
     assert "segment(channel)" in result.unresolved_requirements
 

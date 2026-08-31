@@ -82,7 +82,8 @@ def test_neither_false_positive_guard_leaves_other_requirement_kinds_broken():
     assessment = assess_coverage(
         _question(_WITHIN_EACH_SEGMENT_QUESTION, dimensions=["region"]), _plan("group_and_aggregate"),
         [_evidence("group_and_aggregate", 0, group_by="region")],
-        date_columns=["date"], executed_tools=["group_and_aggregate"], recovery_finished=True)
+        date_columns=["date"], categorical_columns=["region"],
+        executed_tools=["group_and_aggregate"], recovery_finished=True)
     segment_requirement = next(item for item in assessment.requirements if item.kind == "segment")
     assert segment_requirement.supported is True
 

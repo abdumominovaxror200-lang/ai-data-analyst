@@ -13,6 +13,25 @@ from __future__ import annotations
 from app.reasoning.contracts import Evidence, Finding, Hypothesis, Limitation, Recommendation
 from app.reasoning.recommendation_grounding import evaluate_recommendation_grounding
 
+
+def test_post_outcome_evidence_cannot_ground_an_action():
+    evidence = [Evidence(
+        id="ev_post", source_tool="correlation_analysis", evidence_type="CALCULATED_RESULT",
+        metric="post_outcome_survey", result_summary={"correlation": .8},
+        causal_eligible=False, causal_restriction="Measured after the outcome.",
+        tool_call_ref="tool_call[0]",
+    )]
+    findings = [Finding(
+        id="finding_post", statement="A descriptive association was observed.",
+        classification="CALCULATED_RESULT", supporting_evidence=["ev_post"],
+    )]
+    recommendation = Recommendation(
+        recommendation="Change operations based on the survey.",
+        supporting_findings=["finding_post"], confidence="medium",
+    )
+    report = evaluate_recommendation_grounding(recommendation, findings, evidence, hypotheses=[])
+    assert any(item.startswith("post-outcome evidence") for item in report.violations)
+
 # --- 1. Weak correlation backing a causal, high-confidence recommendation ----------
 
 

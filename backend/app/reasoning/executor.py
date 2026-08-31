@@ -14,7 +14,7 @@ from app.agent.providers import LLMProvider
 from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
 from app.reasoning.categories import filtered_tool_schemas
-from app.reasoning.contracts import AnalysisPlan, Evidence
+from app.reasoning.contracts import AnalysisPlan, Evidence, EvidenceScope, TemporalEvidenceScope
 from app.schemas import ToolCallRecord
 from app.tools.errors import ToolExecutionError
 
@@ -23,6 +23,7 @@ from app.tools.errors import ToolExecutionError
 # is set from this, not asked of the LLM, so the classification is deterministic and
 # cannot be talked out of by a persuasive-sounding model response.
 _STATISTICAL_TOOLS = {
+    "compare_periods_inference",
     "t_test",
     "chi_square_test",
     "anova_test",
@@ -168,6 +169,28 @@ def _guess_metric(call: ToolCallRecord) -> str | None:
     return None
 
 
+_POST_OUTCOME_MARKERS = (
+    "post_outcome", "postoutcome", "after_outcome", "after_resolution",
+    "post_resolution", "resolution_followup", "resolved_at", "closed_at",
+)
+
+
+def _causal_eligibility(call: ToolCallRecord) -> tuple[bool, str | None]:
+    """Conservative name/semantic guard; descriptive use remains allowed."""
+    params = call.params or {}
+    names: list[str] = []
+    for key in ("column", "value_column", "target_column", "agg_column", "segment_column"):
+        if isinstance(params.get(key), str):
+            names.append(params[key])
+    for key in ("columns", "predictor_columns"):
+        if isinstance(params.get(key), list):
+            names.extend(value for value in params[key] if isinstance(value, str))
+    flagged = sorted({name for name in names if any(marker in name.lower() for marker in _POST_OUTCOME_MARKERS)})
+    if flagged:
+        return False, "Post-outcome or outcome-timestamp variable(s) are descriptive only: " + ", ".join(flagged)
+    return True, None
+
+
 def _guess_population(call: ToolCallRecord) -> str | None:
     """Reads which subset of the dataset this call was actually scoped to, directly
     off the tool call's own real `filters` param -- never guessed from the result.
@@ -190,6 +213,29 @@ def _guess_population(call: ToolCallRecord) -> str | None:
     return " AND ".join(parts) if parts else None
 
 
+def _evidence_scope(call: ToolCallRecord) -> EvidenceScope:
+    params = call.params or {}
+    def normalized_filters(key: str) -> list[dict]:
+        raw = params.get(key)
+        return [dict(item) for item in raw if isinstance(item, dict)] if isinstance(raw, list) else []
+
+    filters = normalized_filters("filters")
+    current_filters = normalized_filters("current_filters")
+    previous_filters = normalized_filters("previous_filters") or normalized_filters("baseline_filters")
+    comparison_groups = {
+        key: params[key] for key in ("group_column", "group_a", "group_b") if params.get(key) is not None
+    }
+    temporal = None
+    period_keys = ("current_start", "current_end", "previous_start", "previous_end")
+    if any(params.get(key) is not None for key in period_keys):
+        temporal = TemporalEvidenceScope(**{key: params.get(key) for key in period_keys})
+    return EvidenceScope(
+        population=_guess_population(call), filters=filters,
+        current_filters=current_filters, previous_filters=previous_filters,
+        comparison_groups=comparison_groups, temporal=temporal,
+    )
+
+
 def _guess_sample_size(result: dict) -> int | None:
     for key in ("n", "n_observations", "n_rows_used", "row_count", "total_rows", "n_customers"):
         value = result.get(key)
@@ -206,6 +252,7 @@ def _bounded_summary(result: dict) -> dict:
 
 def _to_evidence(index: int, call: ToolCallRecord) -> Evidence:
     result = call.result or {}
+    causal_eligible, causal_restriction = _causal_eligibility(call)
     return Evidence(
         id=f"ev_{index}",
         source_tool=call.tool,
@@ -213,6 +260,9 @@ def _to_evidence(index: int, call: ToolCallRecord) -> Evidence:
         metric=_guess_metric(call),
         result_summary=_bounded_summary(result),
         population=_guess_population(call),
+        scope=_evidence_scope(call),
         sample_size=_guess_sample_size(result),
+        causal_eligible=causal_eligible,
+        causal_restriction=causal_restriction,
         tool_call_ref=f"tool_call[{index}]",
     )

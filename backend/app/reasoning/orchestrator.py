@@ -33,6 +33,7 @@ from app.datasets.storage import DatasetRecord
 from app.reasoning import confound_detection, contradiction_detection, epistemic_checks, executor, hypothesis_evaluator, planner, question_parser, verifier
 from app.reasoning.analytical_audit import build_analytical_audit
 from app.reasoning.coverage import CoverageAssessment, assess_coverage
+from app.reasoning.conclusion_guard import sanitize_blocked_hypotheses
 from app.reasoning.contracts import AnalysisResult, Finding, Limitation
 from app.reasoning.premise_validator import validate_question
 from app.reasoning.recommendation_grounding import evaluate_recommendation_grounding
@@ -82,7 +83,7 @@ class ReasoningOrchestrator:
         if question.intent == "diagnostic":
             initial_coverage = assess_coverage(
                 question, plan, evidence,
-                date_columns=_profile["date_columns"], executed_tools=executed_tools,
+                date_columns=_profile["date_columns"], categorical_columns=_profile.get("categorical_columns", []), executed_tools=executed_tools,
                 recovery_finished=False,
             )
             if initial_coverage.recovery_targets:
@@ -96,7 +97,7 @@ class ReasoningOrchestrator:
                 trace.append(f"coverage recovery: {len(recovered)} evidence item(s) gathered")
             self.last_coverage = assess_coverage(
                 question, plan, evidence,
-                date_columns=_profile["date_columns"], executed_tools=executed_tools,
+                date_columns=_profile["date_columns"], categorical_columns=_profile.get("categorical_columns", []), executed_tools=executed_tools,
                 recovery_finished=True,
             )
             trace.extend(
@@ -114,7 +115,7 @@ class ReasoningOrchestrator:
         else:
             self.last_coverage = assess_coverage(
                 question, plan, evidence,
-                date_columns=_profile["date_columns"], executed_tools=executed_tools,
+                date_columns=_profile["date_columns"], categorical_columns=_profile.get("categorical_columns", []), executed_tools=executed_tools,
                 recovery_finished=False,
             )
         if not evidence:
@@ -161,6 +162,7 @@ class ReasoningOrchestrator:
         # makes the causation guard's "a supported causal hypothesis may use unhedged
         # language" branch reachable in production for the first time.
         hypotheses = hypothesis_evaluator.update_hypothesis_status(plan.hypotheses, evidence, findings)
+        hypotheses = sanitize_blocked_hypotheses(hypotheses, limitations)
         if hypotheses:
             trace.append(f"hypotheses: {[(h.id, h.status) for h in hypotheses]}")
 
@@ -183,7 +185,10 @@ class ReasoningOrchestrator:
             grounding = evaluate_recommendation_grounding(recommendation, findings, evidence, hypotheses, limitations)
             if grounding.violations:
                 trace.append(f"recommendation grounding violations: {grounding.violations}")
-            if grounding.adjusted_confidence != recommendation.confidence:
+            if any(item.startswith("post-outcome evidence") for item in grounding.violations):
+                trace.append("recommendation withheld: post-outcome evidence cannot be an action basis")
+                recommendation = None
+            if recommendation is not None and grounding.adjusted_confidence != recommendation.confidence:
                 trace.append(
                     f"recommendation confidence capped: {recommendation.confidence!r} -> "
                     f"{grounding.adjusted_confidence!r} (evidence strength: {grounding.evidence_strength})"
@@ -274,7 +279,7 @@ class ReasoningOrchestrator:
             plan=plan,
             evidence=[],
             findings=[finding],
-            hypotheses=list(plan.hypotheses),
+            hypotheses=sanitize_blocked_hypotheses(list(plan.hypotheses), all_limitations),
             limitations=all_limitations,
             recommendation=None,
             final_answer_text=final_text,

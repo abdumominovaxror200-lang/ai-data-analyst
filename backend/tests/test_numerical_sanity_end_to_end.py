@@ -140,11 +140,12 @@ def test_unit_mismatch_group_outlier_reaches_the_final_result():
 # --- 3. Aggregation / cross-tool mismatch (verifier._cross_check) -------------------------
 
 
-def test_cross_tool_aggregation_mismatch_reaches_the_final_result():
-    """t_test (one-sample, filtered to segment A, mean ~200) and confidence_interval
-    (filtered to segment B, mean ~2000) both examine 'revenue' via two DIFFERENT
-    tools' top-level 'mean' field -- a real, order-of-magnitude disagreement
-    verifier._cross_check is designed to catch, not a contrived scalar mismatch."""
+def test_cross_tool_aggregation_does_not_compare_different_filter_scopes():
+    """Different populations are not contradictory estimates of one quantity.
+
+    A t-test on segment A and confidence interval on segment B remain separate
+    evidence and must not be presented as a cross-check disagreement.
+    """
     rng = np.random.default_rng(9)
     df = pd.DataFrame({
         "revenue": np.concatenate([rng.normal(200, 10, 20), rng.normal(2000, 50, 20)]),
@@ -169,9 +170,9 @@ def test_cross_tool_aggregation_mismatch_reaches_the_final_result():
     result = orchestrator.analyze(record, "What is average revenue?")
 
     disagreement_limitations = [l for l in result.limitations if "results disagree between" in l.text]
-    assert disagreement_limitations, f"no cross-check disagreement limitation was detected: {[l.text for l in result.limitations]}"
-    assert disagreement_limitations[0].severity == "reduces_confidence"
-    assert disagreement_limitations[0].category == "methodological"
+    assert disagreement_limitations == []
+    assert len(result.evidence) == 2
+    assert result.evidence[0].scope != result.evidence[1].scope
 
 
 # --- 4. reduces_confidence must NOT force confidence to None the way blocks_conclusion does --

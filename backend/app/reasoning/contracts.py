@@ -25,7 +25,7 @@ reconciliations:
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -64,6 +64,26 @@ class Claim(BaseModel):
 EvidenceType = Literal["FACT", "CALCULATED_RESULT", "STATISTICAL_RESULT"]
 
 
+class TemporalEvidenceScope(BaseModel):
+    """Exact temporal population used by a tool call, when known."""
+
+    current_start: str | None = None
+    current_end: str | None = None
+    previous_start: str | None = None
+    previous_end: str | None = None
+
+
+class EvidenceScope(BaseModel):
+    """Machine-comparable scope; optional to preserve legacy Evidence records."""
+
+    population: str | None = None
+    filters: list[dict[str, Any]] = Field(default_factory=list)
+    current_filters: list[dict[str, Any]] = Field(default_factory=list)
+    previous_filters: list[dict[str, Any]] = Field(default_factory=list)
+    comparison_groups: dict[str, Any] = Field(default_factory=dict)
+    temporal: TemporalEvidenceScope | None = None
+
+
 class Evidence(BaseModel):
     id: str
     source_tool: str
@@ -72,9 +92,12 @@ class Evidence(BaseModel):
     result_summary: dict = Field(default_factory=dict)
     population: str | None = None
     time_coverage: str | None = None
+    scope: EvidenceScope | None = None
     sample_size: int | None = None
     limitations: list[str] = Field(default_factory=list)
     confidence_info: str | None = None
+    causal_eligible: bool = True
+    causal_restriction: str | None = None
     tool_call_ref: str  # e.g. "tool_call[0]" -- index into the underlying ToolCallRecord list
 
 

@@ -27,6 +27,7 @@ from app.tools import (
     report,
     segmentation,
     statistics,
+    temporal_diagnostics,
 )
 from app.tools.errors import ToolExecutionError
 
@@ -93,6 +94,44 @@ FILTERS_SCHEMA = {
 }
 
 TOOL_SCHEMAS: list[dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "compare_periods_inference",
+            "description": "Welch two-sample inference for a numeric metric across two explicit date periods, including counts, mean difference, CI, p-value, and effect size.",
+            "parameters": {"type": "object", "properties": {
+                "date_column": {"type": "string"}, "value_column": {"type": "string"},
+                "current_start": {"type": "string"}, "current_end": {"type": "string"},
+                "previous_start": {"type": "string"}, "previous_end": {"type": "string"},
+                "confidence": {"type": "number"}, "filters": FILTERS_SCHEMA,
+            }, "required": ["date_column", "value_column", "current_start", "current_end", "previous_start", "previous_end"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "localized_period_change",
+            "description": "Ranks adequately sized categorical segments by descriptive mean change between two explicit periods; small groups are excluded with typed limitations.",
+            "parameters": {"type": "object", "properties": {
+                "date_column": {"type": "string"}, "value_column": {"type": "string"}, "segment_column": {"type": "string"},
+                "current_start": {"type": "string"}, "current_end": {"type": "string"},
+                "previous_start": {"type": "string"}, "previous_end": {"type": "string"}, "filters": FILTERS_SCHEMA,
+            }, "required": ["date_column", "value_column", "segment_column", "current_start", "current_end", "previous_start", "previous_end"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "period_outlier_sensitivity",
+            "description": "Compares raw two-period means with an explicit pooled-IQR sensitivity result and reports every exclusion.",
+            "parameters": {"type": "object", "properties": {
+                "date_column": {"type": "string"}, "value_column": {"type": "string"},
+                "current_start": {"type": "string"}, "current_end": {"type": "string"},
+                "previous_start": {"type": "string"}, "previous_end": {"type": "string"},
+                "iqr_multiplier": {"type": "number"}, "materiality_threshold": {"type": "number"}, "filters": FILTERS_SCHEMA,
+            }, "required": ["date_column", "value_column", "current_start", "current_end", "previous_start", "previous_end"]},
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -808,6 +847,9 @@ _HANDLERS: dict[str, Callable[..., dict[str, Any]]] = {
     "filter_data": lambda record, **p: filtering.filter_data(record.df, **p),
     "group_and_aggregate": lambda record, **p: aggregation.group_and_aggregate(record.df, **p),
     "compare_periods": lambda record, **p: comparison.compare_periods(record.df, **p),
+    "compare_periods_inference": lambda record, **p: temporal_diagnostics.compare_periods_inference(record.df, **p),
+    "localized_period_change": lambda record, **p: temporal_diagnostics.localized_period_change(record.df, **p),
+    "period_outlier_sensitivity": lambda record, **p: temporal_diagnostics.period_outlier_sensitivity(record.df, **p),
     "correlation_analysis": lambda record, **p: correlation.correlation_analysis(record.df, **p),
     "detect_anomalies": lambda record, **p: anomaly.detect_anomalies(record.df, **p),
     "generate_chart": lambda record, **p: charts.generate_chart(record.df, **p),

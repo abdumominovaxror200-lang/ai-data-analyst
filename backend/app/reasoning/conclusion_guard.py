@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import re
 
-from app.reasoning.contracts import Finding, Limitation
+from app.reasoning.contracts import Finding, Hypothesis, Limitation
 
 _CAVEAT_MARKER = "Important caveat:"
 
@@ -39,6 +39,7 @@ _DEFINITIVE_DRIVER_PATTERNS = (
     r"\b(?:primary|dominant|main|key|root) (?:driver|cause)\b",
     r"\broot cause\b",
     r"\b(?:was|is) driven by\b",
+    r"\bcaused by\b",
     r"\b(?:explains?|accounts? for|responsible for) (?:most|the majority|the decline|the change)\b",
 )
 _RECOMMENDATION_PATTERNS = (
@@ -113,3 +114,19 @@ def _safe_blocked_response(findings: list[Finding], limitations: list[Limitation
             lines.append(f"- {limitation.text}")
     lines.extend(["", "Additional evidence is required before identifying a driver or taking action."])
     return "\n".join(lines)
+
+
+def sanitize_blocked_hypotheses(
+    hypotheses: list[Hypothesis], limitations: list[Limitation]
+) -> list[Hypothesis]:
+    """Remove causal/driver claims and support labels from every visible hypothesis."""
+    if not any(item.severity == "blocks_conclusion" for item in limitations):
+        return hypotheses
+    return [
+        item.model_copy(update={
+            "description": "This hypothesis remains unresolved; additional evidence is required.",
+            "is_causal": False,
+            "status": "inconclusive",
+        })
+        for item in hypotheses
+    ]

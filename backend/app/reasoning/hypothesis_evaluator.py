@@ -346,7 +346,11 @@ def update_hypothesis_status(
     updated: list[Hypothesis] = []
     for hypothesis in hypotheses:
         hyp_tokens = _hypothesis_tokens(hypothesis)
-        linked = [ev for ev in evidence if _is_linked(hyp_tokens, _evidence_tokens(ev))]
+        linked = [
+            ev for ev in evidence
+            if _is_linked(hyp_tokens, _evidence_tokens(ev))
+            and (not hypothesis.is_causal or ev.causal_eligible)
+        ]
         status, evidence_for, evidence_against = _score_hypothesis(hypothesis, linked)
         updated.append(
             hypothesis.model_copy(
