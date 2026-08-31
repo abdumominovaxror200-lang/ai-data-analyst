@@ -6,6 +6,8 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+backend/.pytest-tmp/
+frontend/.npm-cache/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/

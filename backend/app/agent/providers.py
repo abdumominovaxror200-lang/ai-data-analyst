@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
+import pandas as pd
 
 from app.config import get_settings
 
@@ -106,7 +107,7 @@ class OpenAICompatibleProvider(LLMProvider):
             except httpx.RequestError as exc:
                 # Log the real network detail server-side only — a raw exception string
                 # can include hostnames/ports that shouldn't reach the end user.
-                logger.warning("LLM provider network error: %s", exc)
+                logger.warning("LLM provider network error (details redacted)")
                 raise LLMProviderError(_FRIENDLY_MESSAGES["network"]) from exc
 
             if response.status_code == 429 and attempt < _MAX_RETRIES:
@@ -133,7 +134,7 @@ class OpenAICompatibleProvider(LLMProvider):
             except (ValueError, KeyError, IndexError) as exc:
                 # A malformed/unexpected response body must never crash the request —
                 # log the raw body server-side, tell the user something generic.
-                logger.error("LLM provider returned an unparseable response: %s | body=%r", exc, response.text[:2000])
+                logger.error("LLM provider returned an unparseable response (body redacted)")
                 raise LLMProviderError(_FRIENDLY_MESSAGES["default"]) from exc
 
             tool_calls = []
@@ -163,12 +164,7 @@ _FRIENDLY_MESSAGES = {
 
 def _friendly_error_message(exc: httpx.HTTPStatusError) -> str:
     status = exc.response.status_code
-    # Log the full raw detail server-side for debugging — never expose it to the client.
-    try:
-        detail = exc.response.json().get("error", {}).get("message")
-    except Exception:  # noqa: BLE001 - response body may not be JSON
-        detail = exc.response.text[:500]
-    logger.warning("LLM provider HTTP error %s: %s", status, detail)
+    logger.warning("LLM provider HTTP error %s (detail redacted)", status)
 
     if status == 429:
         return _FRIENDLY_MESSAGES["rate_limit"]
@@ -197,11 +193,33 @@ class MockProvider(LLMProvider):
         return self._script.pop(0)
 
 
-def build_provider_from_settings() -> LLMProvider:
+def build_provider_from_settings(dataset: pd.DataFrame | None = None) -> LLMProvider:
     settings = get_settings()
-    return OpenAICompatibleProvider(
-        api_key=settings.llm_api_key,
+    # Lazy import avoids a providers/privacy import cycle while keeping this the
+    # single construction point for every production provider call.
+    from app.security.privacy import (
+        DisabledProvider,
+        EgressMode,
+        PrivacyEnforcingProvider,
+        classify_dataset,
+        validate_local_endpoint,
+    )
+
+    try:
+        mode = EgressMode(settings.llm_egress_mode)
+    except ValueError as exc:
+        raise ValueError("LLM_EGRESS_MODE must be local_only, external_redacted, or llm_disabled.") from exc
+    if mode == EgressMode.LLM_DISABLED:
+        return DisabledProvider(model=settings.llm_model)
+    if mode == EgressMode.LOCAL_ONLY:
+        validate_local_endpoint(settings.llm_base_url)
+    if mode == EgressMode.EXTERNAL_REDACTED and dataset is None:
+        raise ValueError("external_redacted requires dataset context for fail-closed sanitization.")
+    delegate = OpenAICompatibleProvider(
+        api_key=settings.llm_api_key or ("local" if mode == EgressMode.LOCAL_ONLY else ""),
         base_url=settings.llm_base_url,
         model=settings.llm_model,
         reasoning_effort=settings.llm_reasoning_effort,
     )
+    profile = classify_dataset(dataset) if dataset is not None else None
+    return PrivacyEnforcingProvider(delegate, mode, profile, model=settings.llm_model)

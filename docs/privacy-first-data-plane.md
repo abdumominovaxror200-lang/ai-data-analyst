@@ -1,0 +1,75 @@
+# Privacy-first data plane
+
+Every production LLM call is wrapped by one fail-closed egress boundary. Set
+`LLM_EGRESS_MODE` explicitly during deployment:
+
+- `external_redacted` keeps hosted-provider functionality. Dataset column names
+  become stable request-local aliases, detected sensitive values are quarantined,
+  and only schema metadata plus sanitized aggregate facts can leave the server.
+- `local_only` preserves full local prompt functionality, but accepts only
+  `localhost`, loopback, or literal private-network provider addresses. Public
+  URLs and non-literal hostnames are rejected.
+- `llm_disabled` keeps deterministic dataset tools and API endpoints available,
+  while provider construction and calls are disabled.
+
+The default is `external_redacted` so an existing hosted deployment remains
+functional while adopting the safe boundary. Operators should set the variable
+explicitly; raw-value external egress is no longer a supported mode.
+
+Set `DEPLOYMENT=self_host` for local/private installations or
+`DEPLOYMENT=public` for an internet-facing backend. A public deployment cannot
+use `local_only`; startup fails because a public service cannot safely claim a
+loopback/private model endpoint. Public `external_redacted` startup records that
+raw-value LLM egress is disabled.
+
+Uploaded datasets are process-local and expire after `DATASET_TTL_MINUTES`
+(default: 240). Expired records and their validated server-owned upload files
+are removed on access and during lightweight store sweeps.
+
+## Local OpenAI-compatible servers
+
+Ollama example (installation and model management are intentionally external to
+this application):
+
+```dotenv
+LLM_EGRESS_MODE=local_only
+LLM_BASE_URL=http://127.0.0.1:11434/v1
+LLM_MODEL=your-local-model
+LLM_API_KEY=
+```
+
+vLLM example:
+
+```dotenv
+LLM_EGRESS_MODE=local_only
+LLM_BASE_URL=http://127.0.0.1:8000/v1
+LLM_MODEL=your-local-model
+LLM_API_KEY=
+```
+
+In containers, `127.0.0.1` is the application container itself. Use an explicit
+private IP only when the model server is on a trusted private network. A hosted
+model URL cannot be labeled `local_only`; validation fails before a request.
+
+## Boundary and limitations
+
+PII detection combines column-name hints with bounded value-pattern sampling for
+email, phone, names, addresses, government identifiers, payment cards, and
+sensitive identifiers. All source column names are aliased for external prompts,
+not only columns classified as PII. Alias maps remain server-side and are scoped
+to one dataset/provider instance.
+
+Detection is deliberately conservative to avoid corrupting analytical context:
+bare digit runs are not treated as phone numbers, and lowercase alphanumeric
+codes are not treated as government IDs. One-character column names remain
+available for exact structured alias translation but are not replaced in free
+text, where doing so would rewrite ordinary prose.
+
+No detector can infer every domain-specific secret. Deployments handling special
+identifiers should use `local_only` or `llm_disabled`, and should still enforce
+retention, access control, encryption, and log governance outside this boundary.
+
+The external allowlist admits bounded aggregate reports, EDA, RFM/churn
+summaries, and aggregate chart label/series payloads. Sensitive category labels
+are still redacted. Scatter points, filtered row previews, SQL results/plans,
+and anomaly tools that return individual rows remain withheld in full.

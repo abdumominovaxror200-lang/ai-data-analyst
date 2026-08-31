@@ -53,6 +53,13 @@ against Docker 29.7.2).
    `.env` is gitignored — never commit it. `.env.example` only ever holds
    placeholder text, never a real key.
 
+   Set `DEPLOYMENT=self_host` for this Docker setup. Internet-facing deployments
+   must use `DEPLOYMENT=public`; that mode rejects `LLM_EGRESS_MODE=local_only`
+   at startup and supports `external_redacted` or `llm_disabled`. Configure
+   `DATASET_TTL_MINUTES` to control how long uploaded datasets remain available;
+   the default is 240 minutes, after which both memory and the upload file are
+   cleared.
+
 3. **Build and start both services**
 
    ```bash

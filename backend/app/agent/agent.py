@@ -105,7 +105,7 @@ class DataAnalystAgent:
         ) or "none"
         other_columns = profile["text_columns"] + profile["boolean_columns"]
         dataset_context = (
-            f"Dataset '{record.original_filename}': {profile['rows']} rows, {profile['columns']} columns. "
+            f"Uploaded dataset: {profile['rows']} rows, {profile['columns']} columns. "
             f"Numeric columns: {profile['numeric_columns']}. "
             f"Categorical columns: {profile['categorical_columns']}. "
             f"Date columns: {profile['date_columns']}. Date coverage: {date_coverage}. "
@@ -195,7 +195,7 @@ class DataAnalystAgent:
                         made_new_progress = True
                     except ToolExecutionError as exc:
                         payload = json.dumps({"error": str(exc)})
-                        logger.warning("tool_error tool=%s error=%s", call.name, exc)
+                        logger.warning("tool_error tool=%s error_detail=redacted", call.name)
                         made_new_progress = True  # a new (if failed) attempt is still progress, not a repeat
 
                 messages.append(

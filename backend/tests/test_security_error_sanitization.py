@@ -214,7 +214,7 @@ def test_chat_endpoint_http_response_body_never_leaks_provider_detail(client: Te
 
     real_provider = OpenAICompatibleProvider(api_key="fake-key", base_url="https://api.example.com", model="m")
     monkeypatch.setattr(real_provider._client, "post", _return_413)
-    monkeypatch.setattr(routes_chat_module, "build_provider_from_settings", lambda: real_provider)
+    monkeypatch.setattr(routes_chat_module, "build_provider_from_settings", lambda _dataset=None: real_provider)
 
     response = client.post("/api/chat", json={"dataset_id": "did-1", "message": "hi", "history": []})
 

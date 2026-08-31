@@ -5,7 +5,8 @@ import logging
 import threading
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pandas as pd
 
@@ -46,6 +47,7 @@ class DatasetStore:
         self._lock = threading.Lock()
 
     def save(self, filename: str, content: bytes) -> DatasetRecord:
+        self.sweep_expired()
         settings = get_settings()
         validate_size(len(content), settings.max_upload_bytes)
         ext = validate_extension(filename)
@@ -93,6 +95,7 @@ class DatasetStore:
         return _infer_datetime_columns(df)
 
     def get(self, dataset_id: str) -> DatasetRecord:
+        self.sweep_expired()
         with self._lock:
             record = self._records.get(dataset_id)
         if record is None:
@@ -100,8 +103,49 @@ class DatasetStore:
         return record
 
     def list(self) -> list[DatasetRecord]:
+        self.sweep_expired()
         with self._lock:
             return list(self._records.values())
+
+    def sweep_expired(self, now: datetime | None = None) -> int:
+        """Remove expired records and their server-owned upload files."""
+        settings = get_settings()
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        cutoff = current - timedelta(minutes=settings.dataset_ttl_minutes)
+        with self._lock:
+            expired_ids = [
+                dataset_id
+                for dataset_id, record in self._records.items()
+                if _as_utc(record.uploaded_at) <= cutoff
+            ]
+            expired = [self._records.pop(dataset_id) for dataset_id in expired_ids]
+        for record in expired:
+            _delete_upload_file(record)
+            logger.info("dataset expired id=%s", record.id)
+        if expired:
+            logger.info("dataset retention sweep removed=%s", len(expired))
+        return len(expired)
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _delete_upload_file(record: DatasetRecord) -> None:
+    settings = get_settings()
+    uploads_root = (settings.storage_path / "uploads").resolve()
+    candidate = Path(record.stored_path).resolve()
+    if candidate.parent != uploads_root or candidate.stem != record.id:
+        logger.warning("expired dataset file deletion skipped: path validation failed id=%s", record.id)
+        return
+    try:
+        candidate.unlink(missing_ok=True)
+    except OSError:
+        logger.warning("expired dataset file deletion failed id=%s", record.id)
 
 
 def _infer_datetime_columns(df: pd.DataFrame) -> pd.DataFrame:
