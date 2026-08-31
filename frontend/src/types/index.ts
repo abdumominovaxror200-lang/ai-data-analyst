@@ -22,6 +22,19 @@ export interface DatasetProfile {
   missing_total: number;
   duplicate_rows: number;
   uploaded_at: string;
+  metrics: MetricDefinition[];
+}
+
+export interface MetricDefinition {
+  name: string;
+  kind: "measure" | "count" | "rate" | "ratio";
+  numerator_column?: string | null;
+  denominator_column?: string | null;
+  numerator_aggregation?: "sum" | "count" | "mean" | null;
+  denominator_aggregation?: "sum" | "count" | "count_distinct" | "row_count" | null;
+  unit?: string | null;
+  status: "resolved" | "needs_definition";
+  reason: string;
 }
 
 export interface UploadResponse {

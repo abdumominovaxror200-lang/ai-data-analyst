@@ -176,6 +176,7 @@ def rfm_analysis(
         "value_column": value_column,
         "reference_date": ref.strftime("%Y-%m-%d"),
         "n_customers": int(len(rfm)),
+        "percentage_denominator": {"kind": "count_distinct", "column": customer_column, "value": int(len(rfm))},
         "segments": segments,
     }
 
@@ -266,6 +267,11 @@ def cohort_analysis(
         "value_column": value_column,
         "period": period,
         "metric": "total_value" if value_column else "retention_rate",
+        "metric_definition": (
+            {"kind": "measure", "numerator": value_column, "aggregation": "sum"}
+            if value_column else
+            {"kind": "rate", "numerator": "active distinct customers", "denominator": "cohort distinct customers", "unit": "proportion"}
+        ),
         "n_cohorts": len(rows),
         "cohorts": rows,
     }
@@ -379,6 +385,7 @@ def churn_risk_analysis(
         "threshold_inferred": inference_note is not None,
         "inference_note": inference_note,
         "n_customers": int(total),
+        "percentage_denominator": {"kind": "count_distinct", "column": customer_column, "value": int(total)},
         "counts": {
             "active": int(counts.get("active", 0)),
             "at_risk": int(counts.get("at_risk", 0)),

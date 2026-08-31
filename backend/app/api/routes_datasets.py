@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _to_profile(dataset_id: str, filename: str, uploaded_at: datetime, df: pd.DataFrame) -> DatasetProfile:
+def _to_profile(dataset_id: str, filename: str, uploaded_at: datetime, df: pd.DataFrame, metrics=None) -> DatasetProfile:
     raw = profile_dataset(df)
     return DatasetProfile(
         dataset_id=dataset_id,
@@ -31,6 +31,7 @@ def _to_profile(dataset_id: str, filename: str, uploaded_at: datetime, df: pd.Da
         missing_total=raw["missing_total"],
         duplicate_rows=raw["duplicate_rows"],
         date_ranges=raw["date_ranges"],
+        metrics=metrics.public_definitions() if metrics else [],
     )
 
 
@@ -43,7 +44,7 @@ async def upload_dataset(file: UploadFile = File(...)) -> UploadResponse:
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    profile = _to_profile(record.id, record.original_filename, record.uploaded_at, record.df)
+    profile = _to_profile(record.id, record.original_filename, record.uploaded_at, record.df, record.metrics)
     logger.info("upload complete dataset_id=%s filename=%s", record.id, record.original_filename)
     return UploadResponse(dataset_id=record.id, profile=profile)
 
@@ -55,4 +56,4 @@ def get_dataset(dataset_id: str) -> DatasetProfile:
         record = store.get(dataset_id)
     except DatasetNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _to_profile(record.id, record.original_filename, record.uploaded_at, record.df)
+    return _to_profile(record.id, record.original_filename, record.uploaded_at, record.df, record.metrics)

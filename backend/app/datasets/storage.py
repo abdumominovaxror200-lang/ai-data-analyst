@@ -17,6 +17,7 @@ from app.datasets.validation import (
     validate_extension,
     validate_size,
 )
+from app.datasets.metric_registry import MetricRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,11 @@ class DatasetRecord:
     uploaded_at: datetime
     df: pd.DataFrame
     stored_path: str
+    metrics: MetricRegistry | None = None
+
+    def __post_init__(self) -> None:
+        if self.metrics is None:
+            self.metrics = MetricRegistry.from_dataframe(self.df)
 
 
 class DatasetNotFoundError(Exception):

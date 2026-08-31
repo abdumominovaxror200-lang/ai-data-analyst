@@ -312,6 +312,7 @@ def pareto_chart_data(
         "dimension_column": dimension_column,
         "value_column": value_column,
         "total": round(total, 4),
+        "percentage_denominator": {"kind": "sum", "column": value_column, "value": round(total, 4)},
         "top_n": effective_top_n,
         "other_bucket_included": other_bucket_included,
         "other_category_count": int(len(remainder)),
