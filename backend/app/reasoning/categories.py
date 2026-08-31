@@ -85,6 +85,7 @@ TOOL_CATEGORY_MAP: dict[str, ToolCategory] = {
     "filter_data": ToolCategory.GENERAL_ANALYSIS,
     "group_and_aggregate": ToolCategory.GENERAL_ANALYSIS,
     "compare_periods": ToolCategory.GENERAL_ANALYSIS,
+    "derived_ratio": ToolCategory.GENERAL_ANALYSIS,
     "localized_period_change": ToolCategory.GENERAL_ANALYSIS,
     "period_outlier_sensitivity": ToolCategory.GENERAL_ANALYSIS,
     "generate_chart": ToolCategory.GENERAL_ANALYSIS,
