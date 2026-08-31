@@ -210,7 +210,7 @@ def build_provider_from_settings(dataset: pd.DataFrame | None = None) -> LLMProv
     except ValueError as exc:
         raise ValueError("LLM_EGRESS_MODE must be local_only, external_redacted, or llm_disabled.") from exc
     if mode == EgressMode.LLM_DISABLED:
-        return DisabledProvider()
+        return DisabledProvider(model=settings.llm_model)
     if mode == EgressMode.LOCAL_ONLY:
         validate_local_endpoint(settings.llm_base_url)
     if mode == EgressMode.EXTERNAL_REDACTED and dataset is None:
@@ -222,4 +222,4 @@ def build_provider_from_settings(dataset: pd.DataFrame | None = None) -> LLMProv
         reasoning_effort=settings.llm_reasoning_effort,
     )
     profile = classify_dataset(dataset) if dataset is not None else None
-    return PrivacyEnforcingProvider(delegate, mode, profile)
+    return PrivacyEnforcingProvider(delegate, mode, profile, model=settings.llm_model)

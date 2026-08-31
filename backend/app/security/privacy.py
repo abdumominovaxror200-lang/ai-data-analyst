@@ -5,6 +5,7 @@ from __future__ import annotations
 import ipaddress
 import hashlib
 import json
+import logging
 import re
 from dataclasses import dataclass
 from enum import StrEnum
@@ -14,6 +15,8 @@ from urllib.parse import urlparse
 import pandas as pd
 
 from app.agent.providers import LLMProvider, LLMProviderError, ProviderResponse, ToolCall
+
+egress_logger = logging.getLogger("app.security.llm_egress")
 
 
 class EgressMode(StrEnum):
@@ -198,29 +201,127 @@ def validate_local_endpoint(base_url: str) -> None:
 
 
 class DisabledProvider(LLMProvider):
+    def __init__(self, model: str = "") -> None:
+        self._model = model
+
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ProviderResponse:
+        _emit_egress_audit(
+            mode=EgressMode.LLM_DISABLED,
+            model=self._model,
+            messages=messages,
+            tools=tools,
+            profile=None,
+            call_made=False,
+        )
         raise LLMProviderError("LLM functionality is disabled by the server privacy policy.")
 
 
 class PrivacyEnforcingProvider(LLMProvider):
     """The sole egress boundary: sanitize every call and unalias tool calls locally."""
 
-    def __init__(self, delegate: LLMProvider, mode: EgressMode, profile: PrivacyProfile | None = None) -> None:
-        self._delegate, self._mode, self._profile = delegate, mode, profile
+    def __init__(
+        self,
+        delegate: LLMProvider,
+        mode: EgressMode,
+        profile: PrivacyProfile | None = None,
+        model: str = "",
+    ) -> None:
+        self._delegate, self._mode, self._profile, self._model = delegate, mode, profile, model
 
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ProviderResponse:
         if self._mode == EgressMode.LLM_DISABLED:
+            _emit_egress_audit(
+                mode=self._mode,
+                model=self._model,
+                messages=messages,
+                tools=tools,
+                profile=self._profile,
+                call_made=False,
+            )
             raise LLMProviderError("LLM functionality is disabled by the server privacy policy.")
         if self._mode == EgressMode.LOCAL_ONLY:
+            _emit_egress_audit(
+                mode=self._mode,
+                model=self._model,
+                messages=messages,
+                tools=tools,
+                profile=self._profile,
+                call_made=True,
+            )
             return self._delegate.complete(messages, tools)
         if self._profile is None:
             raise LLMProviderError("External LLM egress is blocked until a dataset privacy profile is available.")
         safe_messages = [_sanitize_message(message, self._profile) for message in messages]
         safe_tools = _sanitize_generic(tools, self._profile, payload=False)
+        _emit_egress_audit(
+            mode=self._mode,
+            model=self._model,
+            messages=safe_messages,
+            tools=safe_tools,
+            profile=self._profile,
+            original_messages=messages,
+            call_made=True,
+        )
         response = self._delegate.complete(safe_messages, safe_tools)
         calls = [ToolCall(id=call.id, name=call.name, arguments=_unalias(call.arguments, self._profile)) for call in response.tool_calls]
         content = _restore_aliases(response.content, self._profile) if response.content else response.content
         return ProviderResponse(content=content, tool_calls=calls)
+
+
+def _emit_egress_audit(
+    *,
+    mode: EgressMode,
+    model: str,
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
+    profile: PrivacyProfile | None,
+    call_made: bool,
+    original_messages: list[dict[str, Any]] | None = None,
+) -> None:
+    """Emit metadata about one boundary decision without logging payload content."""
+    serialized = json.dumps(
+        {"messages": messages, "tools": tools},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    )
+    original_text = json.dumps(original_messages or messages, ensure_ascii=False, default=str)
+    aliased_hits = 0
+    quarantined_hits = 0
+    if profile is not None:
+        aliased_hits = sum(original_text.count(source) for source in profile.aliases if len(source) >= 2)
+        quarantined_hits = sum(original_text.count(value) for value in profile.quarantined_values)
+    withheld = sum(
+        1
+        for message in messages
+        if message.get("role") == "tool" and "\"privacy_status\": \"payload_withheld\"" in str(message.get("content", ""))
+    )
+    event = {
+        "event": "llm_egress",
+        "mode": mode.value,
+        "model": model,
+        "message_count": len(messages),
+        "tool_names": _tool_names(tools),
+        "redactions": {
+            "aliased_columns": aliased_hits,
+            "quarantined_hits": quarantined_hits,
+            "withheld_tool_payloads": withheld,
+        },
+        "payload_sha256": hashlib.sha256(serialized.encode("utf-8")).hexdigest(),
+        "call_made": call_made,
+    }
+    egress_logger.info("%s", json.dumps(event, sort_keys=True, separators=(",", ":")))
+
+
+def _tool_names(tools: list[dict[str, Any]]) -> list[str]:
+    names: list[str] = []
+    for tool in tools:
+        function = tool.get("function") if isinstance(tool, dict) else None
+        name = function.get("name") if isinstance(function, dict) else None
+        if isinstance(name, str):
+            names.append(name)
+    return names
 
 
 def _sanitize_message(message: dict[str, Any], profile: PrivacyProfile) -> dict[str, Any]:
