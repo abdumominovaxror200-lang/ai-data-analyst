@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pandas as pd
 import pytest
 from types import SimpleNamespace
@@ -15,6 +17,7 @@ from app.security.privacy import (
     redact_text,
     validate_local_endpoint,
 )
+from app.tools.charts import generate_chart
 
 
 class RecordingProvider(LLMProvider):
@@ -114,6 +117,93 @@ def test_unapproved_row_payload_is_withheld_including_numeric_values() -> None:
     sent = repr(recorder.calls)
     assert "987654.25" not in sent
     assert "payload_withheld" in sent
+
+
+def test_aggregate_chart_is_allowed_but_sensitive_label_is_redacted() -> None:
+    frame = pd.DataFrame({"customer_email": ["alice@example.test"], "amount": [12.5]})
+    chart = generate_chart(frame, chart_type="bar", x="customer_email", y="amount")
+    recorder = RecordingProvider()
+    provider = PrivacyEnforcingProvider(
+        recorder, EgressMode.EXTERNAL_REDACTED, classify_dataset(frame)
+    )
+    provider.complete(
+        [{
+            "role": "tool",
+            "name": "generate_chart",
+            "content": "UNTRUSTED_TOOL_OUTPUT\n" + json.dumps(chart),
+        }],
+        [],
+    )
+    sent = repr(recorder.calls)
+    assert "payload_withheld" not in sent
+    assert "alice@example.test" not in sent
+    assert "customer_email" not in sent
+    assert "12.5" in sent
+
+
+def test_scatter_chart_raw_points_remain_withheld() -> None:
+    frame = pd.DataFrame({"x_metric": [123.45], "y_metric": [678.9]})
+    chart = generate_chart(frame, chart_type="scatter", x="x_metric", y="y_metric")
+    recorder = RecordingProvider()
+    provider = PrivacyEnforcingProvider(
+        recorder, EgressMode.EXTERNAL_REDACTED, classify_dataset(frame)
+    )
+    provider.complete(
+        [{
+            "role": "tool",
+            "name": "generate_chart",
+            "content": "UNTRUSTED_TOOL_OUTPUT\n" + json.dumps(chart),
+        }],
+        [],
+    )
+    sent = repr(recorder.calls)
+    assert "payload_withheld" in sent
+    assert "123.45" not in sent
+    assert "678.9" not in sent
+
+
+@pytest.mark.parametrize(
+    "tool_name",
+    ["generate_report", "rfm_analysis", "churn_risk_analysis", "automated_eda"],
+)
+def test_bounded_aggregate_tools_are_allowed(tool_name: str) -> None:
+    recorder = RecordingProvider()
+    provider = PrivacyEnforcingProvider(
+        recorder, EgressMode.EXTERNAL_REDACTED, classify_dataset(_sensitive_frame())
+    )
+    provider.complete(
+        [{
+            "role": "tool",
+            "name": tool_name,
+            "content": "UNTRUSTED_TOOL_OUTPUT\n{\"row_count\":25,\"summary\":\"bounded aggregate\"}",
+        }],
+        [],
+    )
+    sent = repr(recorder.calls)
+    assert "payload_withheld" not in sent
+    assert "25" in sent
+
+
+@pytest.mark.parametrize(
+    "tool_name",
+    ["filter_data", "run_sql_query", "explain_sql_query", "detect_anomalies", "outlier_analysis_multivariate"],
+)
+def test_raw_row_and_sql_tools_remain_withheld(tool_name: str) -> None:
+    recorder = RecordingProvider()
+    provider = PrivacyEnforcingProvider(
+        recorder, EgressMode.EXTERNAL_REDACTED, classify_dataset(_sensitive_frame())
+    )
+    provider.complete(
+        [{
+            "role": "tool",
+            "name": tool_name,
+            "content": "UNTRUSTED_TOOL_OUTPUT\n{\"rows\":[{\"value\":765432.1}]}",
+        }],
+        [],
+    )
+    sent = repr(recorder.calls)
+    assert "payload_withheld" in sent
+    assert "765432.1" not in sent
 
 
 def test_sensitive_numeric_identifier_is_redacted_even_in_approved_payload() -> None:

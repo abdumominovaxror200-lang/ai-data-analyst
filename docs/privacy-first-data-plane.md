@@ -68,3 +68,8 @@ text, where doing so would rewrite ordinary prose.
 No detector can infer every domain-specific secret. Deployments handling special
 identifiers should use `local_only` or `llm_disabled`, and should still enforce
 retention, access control, encryption, and log governance outside this boundary.
+
+The external allowlist admits bounded aggregate reports, EDA, RFM/churn
+summaries, and aggregate chart label/series payloads. Sensitive category labels
+are still redacted. Scatter points, filtered row previews, SQL results/plans,
+and anomaly tools that return individual rows remain withheld in full.

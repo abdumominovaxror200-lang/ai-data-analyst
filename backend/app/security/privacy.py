@@ -76,6 +76,8 @@ _APPROVED_AGGREGATE_TOOLS = {
     "analyze_cardinality", "analyze_distributions", "contribution_analysis",
     "mix_decomposition", "executive_summary", "duplicate_analysis", "data_quality_report",
     "correlation_heatmap_data", "boxplot_data", "pareto_chart_data",
+    "generate_chart", "generate_report", "rfm_analysis", "churn_risk_analysis",
+    "automated_eda",
 }
 
 
@@ -331,21 +333,31 @@ def _sanitize_message(message: dict[str, Any], profile: PrivacyProfile) -> dict[
     if isinstance(content, str) and is_tool:
         marker, _, raw = content.partition("\n")
         tool_name = str(safe.get("name", ""))
-        if tool_name not in _APPROVED_AGGREGATE_TOOLS:
+        try:
+            payload = json.loads(raw)
+        except (ValueError, TypeError):
+            payload = None
+        if not _is_approved_aggregate_payload(tool_name, payload):
             safe["content"] = marker + "\n" + json.dumps(
                 {"privacy_status": "payload_withheld", "reason": "tool output is not approved for external egress"}
             )
             return safe
-        try:
-            payload = json.loads(raw)
-            safe["content"] = marker + "\n" + json.dumps(_sanitize_generic(payload, profile, payload=True))
-        except (ValueError, TypeError):
-            safe["content"] = redact_text(content, profile)
+        safe["content"] = marker + "\n" + json.dumps(_sanitize_generic(payload, profile, payload=True))
     elif isinstance(content, str):
         safe["content"] = redact_text(content, profile)
     if "tool_calls" in safe:
         safe["tool_calls"] = _sanitize_generic(safe["tool_calls"], profile, payload=False)
     return safe
+
+
+def _is_approved_aggregate_payload(tool_name: str, payload: Any) -> bool:
+    if tool_name not in _APPROVED_AGGREGATE_TOOLS or not isinstance(payload, dict):
+        return False
+    # Scatter charts contain sampled event rows, unlike the aggregate label/series
+    # shapes returned by every other chart type.
+    if tool_name == "generate_chart" and "points" in payload:
+        return False
+    return True
 
 
 def redact_text(text: str, profile: PrivacyProfile | None = None) -> str:
