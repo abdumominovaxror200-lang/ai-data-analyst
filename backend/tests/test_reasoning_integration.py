@@ -104,7 +104,8 @@ def test_reason_endpoint_full_round_trip(client, sample_df, monkeypatch):
     # 4. Evidence reached the synthesizer (proven by the final answer coming from the
     #    scripted synthesis call, which only fires after evidence was gathered).
     # 5. Final response returned to the user.
-    assert body["answer"] == "Average revenue is summarized above."
+    assert body["answer"].startswith("Understood as:")
+    assert body["answer"].endswith("Average revenue is summarized above.")
     assert body["reasoning_trace"]
     assert body["facts"]
     assert all(fact["id"].startswith("fact_") and len(fact["source_hash"]) == 64 for fact in body["facts"])
@@ -363,7 +364,8 @@ def test_existing_chat_endpoint_still_works_unmodified(client, sample_df, monkey
     dataset_id = client.post("/api/datasets/upload", files=files).json()["dataset_id"]
     response = client.post("/api/chat", json={"dataset_id": dataset_id, "message": "Hello"})
     assert response.status_code == 200
-    assert response.json()["answer"] == "A plain chat answer."
+    assert response.json()["answer"].startswith("Understood as:")
+    assert response.json()["answer"].endswith("A plain chat answer.")
 
 
 def test_both_chat_and_reason_endpoints_work_against_the_same_dataset(client, sample_df, monkeypatch):
@@ -378,7 +380,8 @@ def test_both_chat_and_reason_endpoints_work_against_the_same_dataset(client, sa
     monkeypatch.setattr("app.api.routes_chat.build_provider_from_settings", lambda _dataset=None: _MP([_PR(content="chat path answer")]))
     chat_response = client.post("/api/chat", json={"dataset_id": dataset_id, "message": "hi"})
     assert chat_response.status_code == 200
-    assert chat_response.json()["answer"] == "chat path answer"
+    assert chat_response.json()["answer"].startswith("Understood as:")
+    assert chat_response.json()["answer"].endswith("chat path answer")
 
     _patch_provider(
         monkeypatch,
@@ -391,7 +394,8 @@ def test_both_chat_and_reason_endpoints_work_against_the_same_dataset(client, sa
     )
     reason_response = client.post("/api/reason", json={"dataset_id": dataset_id, "message": "profile this"})
     assert reason_response.status_code == 200
-    assert reason_response.json()["answer"] == "reasoning path answer"
+    assert reason_response.json()["answer"].startswith("Understood as:")
+    assert reason_response.json()["answer"].endswith("reasoning path answer")
 
 
 # --- 6. blocks_conclusion severity + the confidence downgrade it causes are both -----

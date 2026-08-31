@@ -157,5 +157,6 @@ def test_existing_non_diagnostic_flow_does_not_trigger_rca_recovery(monkeypatch,
     monkeypatch.setattr(orchestrator_module.epistemic_checks, "check_all", lambda *_: [])
     monkeypatch.setattr(orchestrator_module, "synthesize", lambda *_: ("Summary.", None, False, []))
     result = ReasoningOrchestrator(MockProvider([])).analyze(sales_record, question.original_question)
-    assert result.final_answer_text == "Summary."
+    assert result.final_answer_text.startswith("Understood as:")
+    assert result.final_answer_text.endswith("Summary.")
     assert result.evidence == evidence

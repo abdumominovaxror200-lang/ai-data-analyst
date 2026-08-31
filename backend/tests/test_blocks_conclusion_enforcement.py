@@ -260,7 +260,10 @@ def test_blocks_conclusion_prepends_an_unmissable_caveat_to_the_free_text_answer
     result = orchestrator.analyze(record, "Is North a better-performing region than South?")
 
     assert any(l.severity == "blocks_conclusion" for l in result.limitations)
-    assert result.final_answer_text.startswith("Important caveat:"), (
+    assert result.final_answer_text.startswith("Understood as:"), (
+        f"the response did not begin with the required interpretation echo: {result.final_answer_text!r}"
+    )
+    assert "\n\nImportant caveat:" in result.final_answer_text, (
         f"a blocks_conclusion limitation existed but the free-text answer carried no "
         f"caveat: {result.final_answer_text!r}"
     )
