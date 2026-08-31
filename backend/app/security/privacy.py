@@ -78,6 +78,7 @@ _APPROVED_AGGREGATE_TOOLS = {
     "correlation_heatmap_data", "boxplot_data", "pareto_chart_data",
     "generate_chart", "generate_report", "rfm_analysis", "churn_risk_analysis",
     "automated_eda",
+    "derived_ratio",
 }
 
 

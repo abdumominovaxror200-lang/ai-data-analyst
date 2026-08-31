@@ -162,7 +162,7 @@ def _evidence_type_for_tool(tool_name: str) -> str:
 
 def _guess_metric(call: ToolCallRecord) -> str | None:
     params = call.params or {}
-    for key in ("column", "value_column", "target_column", "agg_column"):
+    for key in ("metric_name", "column", "value_column", "target_column", "agg_column"):
         value = params.get(key)
         if isinstance(value, str):
             return value

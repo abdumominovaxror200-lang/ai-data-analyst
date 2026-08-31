@@ -42,6 +42,94 @@ _UNBOUNDED_PCT_FIELDS = {"mape_pct"}
 
 _POPULATION_MISMATCH_RATIO = 5.0  # one sample_size at least 5x another -> worth flagging
 _GROUP_MAGNITUDE_OUTLIER_RATIO = 50.0  # one group value >=50x the median of the rest
+_EXTREME_MAGNITUDE_RATIO = 1000.0
+
+
+def _numeric_items(value, path="result"):
+    if isinstance(value, bool):
+        return
+    if isinstance(value, (int, float)):
+        yield path, float(value)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield from _numeric_items(item, f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from _numeric_items(item, f"{path}[{index}]")
+
+
+def _find_negative_counts_and_durations(evidence: list[Evidence]) -> list[Limitation]:
+    limitations = []
+    for index, item in enumerate(evidence):
+        invalid = []
+        for path, value in _numeric_items(item.result_summary):
+            key = path.lower().rsplit(".", 1)[-1]
+            semantic = any(token in key for token in ("count", "duration", "days", "row_count", "sample_size")) or key == "n"
+            if semantic and value < 0 and not any(token in key for token in ("delta", "change", "difference")):
+                invalid.append(f"{path}={value:g}")
+        if invalid:
+            limitations.append(Limitation(category="methodological", severity="blocks_conclusion", text=f"{item.source_tool} returned impossible negative count/duration values: {', '.join(invalid[:5])}.", affected_findings=[f"finding_{index}"]))
+    return limitations
+
+
+def _find_nested_share_bounds(evidence: list[Evidence]) -> list[Limitation]:
+    limitations = []
+    for index, item in enumerate(evidence):
+        invalid = []
+        for path, value in _numeric_items(item.result_summary):
+            key = path.lower().rsplit(".", 1)[-1]
+            is_signed_change = any(token in key for token in ("change", "delta", "difference", "growth"))
+            if not is_signed_change and any(token in key for token in ("pct", "percent", "percentage", "share")) and key not in _UNBOUNDED_PCT_FIELDS and not 0 <= value <= 100:
+                invalid.append(f"{path}={value:g}")
+        if invalid:
+            limitations.append(Limitation(category="methodological", severity="blocks_conclusion", text=f"{item.source_tool} returned a share/percentage outside 0-100%: {', '.join(invalid[:5])}.", affected_findings=[f"finding_{index}"]))
+    return limitations
+
+
+def _find_derived_ratio_bounds(evidence: list[Evidence]) -> list[Limitation]:
+    limitations = []
+    for index, item in enumerate(evidence):
+        if item.source_tool != "derived_ratio" or not item.result_summary.get("as_percentage"):
+            continue
+        value = item.result_summary.get("ratio_pct")
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and not 0 <= value <= 100:
+            limitations.append(Limitation(category="methodological", severity="blocks_conclusion", text=f"derived_ratio produced {value}% outside the valid 0-100% contract; verify numerator eligibility and denominator scope.", affected_findings=[f"finding_{index}"]))
+    return limitations
+
+
+def _find_group_sum_tie_out(evidence: list[Evidence]) -> list[Limitation]:
+    limitations = []
+    for index, item in enumerate(evidence):
+        result = item.result_summary
+        groups = result.get("groups") if isinstance(result, dict) else None
+        total = next((result[key] for key in ("grand_total", "total_value", "total") if isinstance(result.get(key), (int, float)) and not isinstance(result.get(key), bool)), None) if isinstance(result, dict) else None
+        if not isinstance(groups, list) or total is None:
+            continue
+        values = [group.get("value") for group in groups if isinstance(group, dict)]
+        if not values or not all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in values):
+            continue
+        grouped_total = float(sum(values))
+        tolerance = max(1e-6, abs(float(total)) * 1e-6)
+        if abs(grouped_total - float(total)) > tolerance:
+            limitations.append(Limitation(category="methodological", severity="blocks_conclusion", text=f"{item.source_tool} group values sum to {grouped_total:g}, but the reported total is {float(total):g}; the breakdown does not tie out.", affected_findings=[f"finding_{index}"]))
+    return limitations
+
+
+def _find_extreme_magnitude_vs_total(evidence: list[Evidence]) -> list[Limitation]:
+    limitations = []
+    for index, item in enumerate(evidence):
+        result = item.result_summary
+        if not isinstance(result, dict):
+            continue
+        totals = [abs(float(result[key])) for key in ("grand_total", "total_value", "total") if isinstance(result.get(key), (int, float)) and not isinstance(result.get(key), bool) and result.get(key) != 0]
+        if not totals:
+            continue
+        reference = max(totals)
+        extreme = [(path, value) for path, value in _numeric_items(result) if not path.rsplit(".", 1)[-1] in ("grand_total", "total_value", "total") and abs(value) >= reference * _EXTREME_MAGNITUDE_RATIO]
+        if extreme:
+            path, value = extreme[0]
+            limitations.append(Limitation(category="methodological", severity="blocks_conclusion", text=f"{item.source_tool} returned {path}={value:g}, at least 1000x the known total {reference:g}; verify units and scale.", affected_findings=[f"finding_{index}"]))
+    return limitations
 
 
 def _find_impossible_percentages(evidence: list[Evidence]) -> list[Limitation]:
@@ -299,4 +387,9 @@ def check_numerical_sanity(evidence: list[Evidence], metric_registry: MetricRegi
         + _find_group_size_imbalance(evidence)
         + _find_unusual_baseline_window(evidence)
         + check_metric_denominators(evidence, metric_registry)
+        + _find_negative_counts_and_durations(evidence)
+        + _find_nested_share_bounds(evidence)
+        + _find_derived_ratio_bounds(evidence)
+        + _find_group_sum_tie_out(evidence)
+        + _find_extreme_magnitude_vs_total(evidence)
     )
