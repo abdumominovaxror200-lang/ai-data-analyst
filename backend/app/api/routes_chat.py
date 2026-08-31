@@ -34,4 +34,4 @@ def chat(request: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     logger.info("chat dataset_id=%s tool_calls=%d", request.dataset_id, len(result["tool_calls"]))
-    return ChatResponse(answer=result["answer"], tool_calls=result["tool_calls"], charts=result["charts"])
+    return ChatResponse(answer=result["answer"], tool_calls=result["tool_calls"], charts=result["charts"], data_caveats=result["data_caveats"], limitations=result["limitations"])

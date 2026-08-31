@@ -63,6 +63,25 @@ export interface ChatResponse {
   answer: string;
   tool_calls: ToolCallRecord[];
   charts: ChartData[];
+  data_caveats: DataCaveats;
+  limitations: LimitationOut[];
+}
+
+export interface ColumnCoverage {
+  column: string;
+  non_null_rows: number;
+  total_rows: number;
+  coverage_pct: number;
+}
+
+export interface DataCaveats {
+  column_coverage: ColumnCoverage[];
+  duplicate_row_count: number;
+  duplicate_pct: number;
+  actual_date_ranges: Record<string, { min?: string | null; max?: string | null }>;
+  rows_dropped: number;
+  rows_dropped_note: string;
+  type_anomalies: string[];
 }
 
 export interface AnalysisResponse {
@@ -165,6 +184,7 @@ export interface ReasonResponse {
   evidence: EvidenceOut[];
   findings: FindingOut[];
   limitations: LimitationOut[];
+  data_caveats: DataCaveats;
   hypotheses: HypothesisOut[];
   recommendation?: RecommendationOut | null;
   tools_used: string[];

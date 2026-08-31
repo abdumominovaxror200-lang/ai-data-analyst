@@ -106,6 +106,7 @@ def reason(request: ReasonRequest) -> ReasonResponse:
             LimitationOut(category=l.category, text=l.text, severity=l.severity, affected_findings=l.affected_findings)
             for l in result.limitations
         ],
+        data_caveats=result.data_caveats,
         hypotheses=[
             HypothesisOut(
                 id=h.id,

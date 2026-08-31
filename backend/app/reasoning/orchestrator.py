@@ -30,6 +30,7 @@ import logging
 from app.agent.providers import LLMProvider
 from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
+from app.data_quality_gate import evaluate_data_quality
 from app.reasoning import confound_detection, contradiction_detection, epistemic_checks, executor, hypothesis_evaluator, planner, question_parser, verifier
 from app.reasoning.analytical_audit import build_analytical_audit
 from app.reasoning.coverage import CoverageAssessment, assess_coverage
@@ -51,6 +52,8 @@ class ReasoningOrchestrator:
 
     def analyze(self, record: DatasetRecord, question_text: str) -> AnalysisResult:
         trace: list[str] = []
+        data_caveats, quality_limitations = evaluate_data_quality(record.df)
+        trace.append("mandatory data-quality gate completed")
 
         # --- LLM call 1: parse question + extract claims ---
         question, parsed_claims = question_parser.parse_question(
@@ -60,11 +63,12 @@ class ReasoningOrchestrator:
 
         # --- deterministic: validate premise against the real data ---
         validation_claims, limitations, _profile = validate_question(question, record.df)
+        limitations = quality_limitations + limitations
         claims = parsed_claims + validation_claims
         trace.append(f"premise validation: {len(limitations)} limitation(s) found")
 
         if _requested_field_missing(limitations):
-            return self._stop_early_missing_field(question, claims, limitations, trace)
+            return self._stop_early_missing_field(question, claims, limitations, trace, data_caveats)
 
         # --- LLM call 2: analysis plan + capability-category selection ---
         plan = planner.plan_analysis(self._provider, question, claims, limitations)
@@ -72,7 +76,7 @@ class ReasoningOrchestrator:
 
         if not plan.capability_categories:
             trace.append("stopping: no applicable capability category for this question")
-            return self._stop_unavailable_capability(question, claims, plan, limitations, trace)
+            return self._stop_unavailable_capability(question, claims, plan, limitations, trace, data_caveats)
 
         # --- execute: existing agent/tool_router loop, unmodified ---
         evidence, _raw_narrative, executed_tools = executor.execute_plan(
@@ -218,6 +222,7 @@ class ReasoningOrchestrator:
             findings=findings,
             hypotheses=hypotheses,
             limitations=limitations,
+            data_caveats=data_caveats,
             recommendation=recommendation,
             final_answer_text=final_text,
             reasoning_trace=trace,
@@ -227,7 +232,7 @@ class ReasoningOrchestrator:
 
     # --- early-stop branches (Phase 3B.7) -----------------------------------------
 
-    def _stop_early_missing_field(self, question, claims, limitations, trace) -> AnalysisResult:
+    def _stop_early_missing_field(self, question, claims, limitations, trace, data_caveats) -> AnalysisResult:
         trace.append("stopping: a requested metric or dimension does not exist in this dataset")
         finding = Finding(
             id="finding_0",
@@ -247,6 +252,7 @@ class ReasoningOrchestrator:
             findings=[finding],
             hypotheses=[],
             limitations=limitations,
+            data_caveats=data_caveats,
             recommendation=None,
             final_answer_text=final_text,
             reasoning_trace=trace,
@@ -254,7 +260,7 @@ class ReasoningOrchestrator:
             analytical_audit=audit,
         )
 
-    def _stop_unavailable_capability(self, question, claims, plan, limitations, trace) -> AnalysisResult:
+    def _stop_unavailable_capability(self, question, claims, plan, limitations, trace, data_caveats) -> AnalysisResult:
         finding = Finding(
             id="finding_0",
             statement="No analytical capability in this system can address this question.",
@@ -281,6 +287,7 @@ class ReasoningOrchestrator:
             findings=[finding],
             hypotheses=sanitize_blocked_hypotheses(list(plan.hypotheses), all_limitations),
             limitations=all_limitations,
+            data_caveats=data_caveats,
             recommendation=None,
             final_answer_text=final_text,
             reasoning_trace=trace,

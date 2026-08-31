@@ -186,6 +186,25 @@ class Limitation(BaseModel):
     affected_findings: list[str] = Field(default_factory=list)  # Finding.id
 
 
+class ColumnCoverage(BaseModel):
+    column: str
+    non_null_rows: int
+    total_rows: int
+    coverage_pct: float
+
+
+class DataCaveats(BaseModel):
+    """Deterministic data-quality facts attached to every analysis response."""
+
+    column_coverage: list[ColumnCoverage] = Field(default_factory=list)
+    duplicate_row_count: int = 0
+    duplicate_pct: float = 0.0
+    actual_date_ranges: dict[str, dict[str, str | None]] = Field(default_factory=dict)
+    rows_dropped: int = 0
+    rows_dropped_note: str = "The mandatory pre-analysis gate did not filter or clean rows."
+    type_anomalies: list[str] = Field(default_factory=list)
+
+
 # --- 9. Recommendation ---------------------------------------------------------------
 
 
@@ -252,6 +271,7 @@ class AnalysisResult(BaseModel):
     findings: list[Finding] = Field(default_factory=list)
     hypotheses: list[Hypothesis] = Field(default_factory=list)
     limitations: list[Limitation] = Field(default_factory=list)
+    data_caveats: DataCaveats = Field(default_factory=DataCaveats)
     recommendation: Recommendation | None = None
     # Phase 4 P2: machine-checkable epistemic-principle violations found in this
     # result by app.reasoning.epistemic_checks -- empty list means no violation was

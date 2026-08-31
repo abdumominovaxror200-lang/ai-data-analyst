@@ -6,6 +6,7 @@ import logging
 from app.agent.providers import LLMProvider
 from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
+from app.data_quality_gate import evaluate_data_quality
 from app.schemas import ToolCallRecord
 from app.tools.errors import ToolExecutionError
 from app.tools.profiler import profile_dataset
@@ -99,6 +100,20 @@ class DataAnalystAgent:
         self._router = tool_router or ToolRouter()
 
     def ask(self, record: DatasetRecord, question: str, history: list[dict[str, str]] | None = None) -> dict:
+        data_caveats, quality_limitations = evaluate_data_quality(record.df)
+        if any(item.severity == "blocks_conclusion" for item in quality_limitations):
+            return {
+                "answer": (
+                    "A reliable analysis cannot be completed because one or more columns have less than "
+                    "50% data coverage. The verified data-quality limitations are shown below; additional "
+                    "complete data is required before drawing a conclusion."
+                ),
+                "tool_calls": [],
+                "tool_attempts": [],
+                "charts": [],
+                "data_caveats": data_caveats,
+                "limitations": quality_limitations,
+            }
         profile = profile_dataset(record.df)
         date_coverage = ", ".join(
             f"{col} spans {rng['min']} to {rng['max']}" for col, rng in profile["date_ranges"].items()
@@ -139,6 +154,8 @@ class DataAnalystAgent:
                     "tool_calls": tool_call_records,
                     "tool_attempts": tool_attempts,
                     "charts": charts,
+                    "data_caveats": data_caveats,
+                    "limitations": quality_limitations,
                 }
 
             messages.append(
@@ -233,6 +250,8 @@ class DataAnalystAgent:
                     "tool_calls": tool_call_records,
                     "tool_attempts": tool_attempts,
                     "charts": charts,
+                    "data_caveats": data_caveats,
+                    "limitations": quality_limitations,
                 }
 
         return {
@@ -243,4 +262,6 @@ class DataAnalystAgent:
             "tool_calls": tool_call_records,
             "tool_attempts": tool_attempts,
             "charts": charts,
+            "data_caveats": data_caveats,
+            "limitations": quality_limitations,
         }
