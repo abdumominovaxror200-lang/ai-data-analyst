@@ -202,6 +202,19 @@ class AnalyticalAuditOut(BaseModel):
     final_confidence: Literal["high", "medium", "low"] | None = None
 
 
+class FactOut(BaseModel):
+    id: str
+    value: int | float
+    unit: str | None = None
+    tool: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    filters: list[dict[str, Any]] = Field(default_factory=list)
+    row_count: int | None = None
+    source_hash: str
+    ts: datetime
+    result_path: str
+
+
 class ReasonResponse(BaseModel):
     answer: str
     intent: str
@@ -217,3 +230,4 @@ class ReasonResponse(BaseModel):
     # Phase 4 but never surfaced through this API until now (Master Mission P1 fix).
     principle_violations: list[str] = Field(default_factory=list)
     analytical_audit: AnalyticalAuditOut | None = None
+    facts: list[FactOut] = Field(default_factory=list)

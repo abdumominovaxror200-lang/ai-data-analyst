@@ -203,4 +203,18 @@ export interface ReasonResponse {
   tools_used: string[];
   reasoning_trace: string[];
   principle_violations: string[];
+  facts: FactOut[];
+}
+
+export interface FactOut {
+  id: string;
+  value: number;
+  unit?: string | null;
+  tool: string;
+  params: Record<string, unknown>;
+  filters: Array<Record<string, unknown>>;
+  row_count?: number | null;
+  source_hash: string;
+  ts: string;
+  result_path: string;
 }

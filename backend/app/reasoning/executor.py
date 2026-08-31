@@ -264,5 +264,6 @@ def _to_evidence(index: int, call: ToolCallRecord) -> Evidence:
         sample_size=_guess_sample_size(result),
         causal_eligible=causal_eligible,
         causal_restriction=causal_restriction,
+        params=dict(call.params or {}),
         tool_call_ref=f"tool_call[{index}]",
     )

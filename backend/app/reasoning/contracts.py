@@ -25,6 +25,7 @@ reconciliations:
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -98,6 +99,8 @@ class Evidence(BaseModel):
     confidence_info: str | None = None
     causal_eligible: bool = True
     causal_restriction: str | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
+    fact_ids: list[str] = Field(default_factory=list)
     tool_call_ref: str  # e.g. "tool_call[0]" -- index into the underlying ToolCallRecord list
 
 
@@ -260,6 +263,23 @@ class AnalyticalAudit(BaseModel):
     final_confidence: Literal["high", "medium", "low"] | None = None
 
 
+class Fact(BaseModel):
+    id: str
+    value: int | float
+    unit: str | None = None
+    tool: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    filters: list[dict[str, Any]] = Field(default_factory=list)
+    row_count: int | None = None
+    source_hash: str
+    ts: datetime
+    result_path: str
+
+
+class FactLedger(BaseModel):
+    facts: list[Fact] = Field(default_factory=list)
+
+
 # --- Top-level pipeline output -----------------------------------------------------
 
 
@@ -272,6 +292,7 @@ class AnalysisResult(BaseModel):
     hypotheses: list[Hypothesis] = Field(default_factory=list)
     limitations: list[Limitation] = Field(default_factory=list)
     data_caveats: DataCaveats = Field(default_factory=DataCaveats)
+    fact_ledger: FactLedger = Field(default_factory=FactLedger)
     recommendation: Recommendation | None = None
     # Phase 4 P2: machine-checkable epistemic-principle violations found in this
     # result by app.reasoning.epistemic_checks -- empty list means no violation was
