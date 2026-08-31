@@ -10,7 +10,12 @@ from app.reasoning.categories import TOOL_CATEGORY_MAP, ToolCategory, tool_names
 from app.reasoning.contracts import AnalysisPlan, AnalyticalQuestion, Evidence
 
 CoverageStage = Literal["planned", "selected", "executed", "evidenced", "unavailable"]
-RequirementKind = Literal["temporal", "segment", "statistical", "outlier"]
+# "mix_decomposition" (Mix Decomposition Engine Phase 2): a question that asks to
+# separate an observed change into a composition/mix component vs. a within-segment
+# component -- satisfied ONLY by real, evidenced `mix_decomposition` tool output
+# (see _requirements below), never by group_and_aggregate, contribution_analysis,
+# charts, or any temporal grouping, which answer related but different questions.
+RequirementKind = Literal["temporal", "segment", "statistical", "outlier", "mix_decomposition"]
 ObligationKind = Literal["required_analytical", "optional_supporting", "conditional_data_quality"]
 
 _TEMPORAL_TOOLS = {
@@ -29,6 +34,20 @@ _CONDITIONAL_DATA_QUALITY_TOOLS = {
 }
 _OUTLIER_TOOLS = {"outlier_analysis_multivariate", "detect_anomalies"}
 _SPECIALIZED_SEGMENT_TOOLS = {"rfm_analysis", "cohort_analysis", "churn_risk_analysis"}
+_MIX_DECOMPOSITION_TOOLS = {"mix_decomposition"}
+
+# Mix Decomposition Engine Phase 2: deterministic tool-selection rule -- a
+# requirement is detected ONLY when the question asks BOTH halves together
+# (same AND-gate style already used by _statistical_relevant/_outlier_relevant
+# below, via _contains_any over _objective_text). "marketing mix" alone, or
+# "within each segment" alone (note: not the same 2-word phrase as "within
+# segment" -- the intervening word "each" means a plain substring check
+# correctly does not match it), never trigger this on their own.
+_MIX_PHRASES = ("mix", "composition", "compositional", "share", "customer base", "customer-base", "network mix", "network-mix")
+_WITHIN_SEGMENT_PHRASES = (
+    "within segment", "within-segment", "within group", "within-group",
+    "within tier", "within-tier", "service level", "service-level",
+)
 
 
 class ToolCoverage(BaseModel):
@@ -89,6 +108,15 @@ def assess_coverage(
         and _data_quality_relevant("duplicate_analysis", question, plan, evidence)
     ):
         planned_tools.append("duplicate_analysis")
+    # Mix Decomposition Engine Phase 2: same "deterministically require it even
+    # if the planner didn't ask for it" pattern as duplicate_analysis above --
+    # zero-trust in the planner LLM remembering every requested investigation
+    # angle. Injecting it into planned_tools (rather than only into
+    # `requirements` below) is what makes it flow through the EXISTING
+    # planned -> selected -> executed -> evidenced ledger loop and its
+    # recovery_targets mechanism unchanged.
+    if "mix_decomposition" not in planned_tools and _mix_decomposition_relevant(question, plan):
+        planned_tools.append("mix_decomposition")
     registered = set(TOOL_CATEGORY_MAP)
     selectable = tool_names_for_categories(plan.capability_categories)
     evidenced_tools = {item.source_tool for item in evidence}
@@ -217,6 +245,23 @@ def _requirements(
             reason=("Outlier robustness was evaluated with analytical evidence." if supporting
                     else "No analytical evidence evaluates the explicitly requested outlier robustness."),
         ))
+    mix_planned = [tool for tool in planned_tools if tool in _MIX_DECOMPOSITION_TOOLS]
+    if mix_planned or _mix_decomposition_relevant(question, plan):
+        # Deliberately checks source_tool == "mix_decomposition" ONLY -- never a
+        # "groups"/population/group_by heuristic like _covers_segment above.
+        # group_and_aggregate, contribution_analysis, a chart, or any temporal
+        # grouping can look superficially similar (a per-category breakdown)
+        # but do NOT separate composition/mix from within-segment performance,
+        # so none of them may ever satisfy this requirement.
+        supporting = [item.id for item in evidence if item.source_tool in _MIX_DECOMPOSITION_TOOLS]
+        requirements.append(AnalyticalRequirement(
+            kind="mix_decomposition", required_tools=mix_planned or ["mix_decomposition"], supported=bool(supporting),
+            supporting_evidence=supporting,
+            reason=("A mix decomposition call separated the observed change into a composition/mix "
+                    "component and a within-segment component." if supporting else
+                    "No mix decomposition call separated the observed change into a composition/mix "
+                    "component and a within-segment component."),
+        ))
     return requirements
 
 
@@ -241,6 +286,9 @@ def _tool_obligation(
         return ("required_analytical" if required else "optional_supporting"), required
     if tool in _OUTLIER_TOOLS:
         required = _outlier_relevant(question, plan)
+        return ("required_analytical" if required else "optional_supporting"), required
+    if tool in _MIX_DECOMPOSITION_TOOLS:
+        required = _mix_decomposition_relevant(question, plan)
         return ("required_analytical" if required else "optional_supporting"), required
     return "required_analytical", True
 
@@ -277,6 +325,15 @@ def _statistical_relevant(question: AnalyticalQuestion, plan: AnalysisPlan) -> b
 
 def _outlier_relevant(question: AnalyticalQuestion, plan: AnalysisPlan) -> bool:
     return _contains_any(_objective_text(question, plan), ("outlier", "extreme", "anomal", "robustness", "robust"))
+
+
+def _mix_decomposition_relevant(question: AnalyticalQuestion, plan: AnalysisPlan) -> bool:
+    """True only when the question asks BOTH to distinguish a composition/mix
+    change AND a within-segment performance change -- either half alone
+    (e.g. a "marketing mix" question with no within-segment language, or
+    "within each segment" with no mix/composition language) does not count."""
+    text = _objective_text(question, plan)
+    return _contains_any(text, _MIX_PHRASES) and _contains_any(text, _WITHIN_SEGMENT_PHRASES)
 
 
 def _objective_text(question: AnalyticalQuestion, plan: AnalysisPlan) -> str:
