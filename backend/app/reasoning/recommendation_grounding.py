@@ -339,6 +339,13 @@ def evaluate_recommendation_grounding(
 
     violations: list[str] = []
 
+    causal_restricted = [e for e in resolved_evidence if not e.causal_eligible]
+    if causal_restricted:
+        violations.append(
+            "post-outcome evidence is descriptive only and cannot support an action recommendation: "
+            + ", ".join(sorted({e.metric or e.source_tool for e in causal_restricted}))
+        )
+
     if not resolved_evidence:
         report = RecommendationGroundingReport(
             evidence_strength="none",

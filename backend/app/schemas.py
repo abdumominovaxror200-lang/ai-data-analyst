@@ -123,6 +123,8 @@ class EvidenceOut(BaseModel):
     population: str | None = None
     scope: "EvidenceScopeOut | None" = None
     sample_size: int | None = None
+    causal_eligible: bool = True
+    causal_restriction: str | None = None
 
 
 class TemporalEvidenceScopeOut(BaseModel):

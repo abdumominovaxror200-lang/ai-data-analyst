@@ -14,6 +14,7 @@ from app.reasoning.contracts import (
 )
 from app.reasoning.coverage import assess_coverage
 from app.reasoning.executor import _to_evidence
+from app.reasoning.hypothesis_evaluator import update_hypothesis_status
 from app.reasoning.verifier import build_findings
 from app.schemas import ToolCallRecord
 
@@ -157,3 +158,80 @@ def test_blocks_conclusion_sanitizes_every_hypothesis_status_and_text():
 def test_nonblocked_hypotheses_remain_byte_for_byte_unchanged():
     hypotheses = [Hypothesis(id="h1", description="A supported descriptive pattern.", is_causal=False, status="supported")]
     assert sanitize_blocked_hypotheses(hypotheses, []) == hypotheses
+
+
+def test_one_sample_evidence_cannot_satisfy_explicit_two_period_inference():
+    question = AnalyticalQuestion(
+        original_question="Compare uncertainty between H2 2026 and H2 2025",
+        intent="diagnostic", requested_time_range="H2 2026 versus H2 2025",
+        required_confidence="95% confidence interval",
+    )
+    exact = EvidenceScope(temporal=TemporalEvidenceScope(
+        current_start="2026-07-01", current_end="2026-12-31",
+        previous_start="2025-07-01", previous_end="2025-12-31",
+    ))
+    result = assess_coverage(
+        question, _plan("t_test"), [_evidence("ev_1", "t_test", scope=exact)],
+        date_columns=["date"], categorical_columns=[], executed_tools=["t_test"], recovery_finished=True,
+    )
+    requirement = next(item for item in result.requirements if item.kind == "two_period_inference")
+    assert requirement.supported is False
+    assert "compare_periods_inference" in result.unresolved_tools
+
+
+def test_exact_scope_phase_b_evidence_satisfies_only_matching_request():
+    question = AnalyticalQuestion(
+        original_question="Test uncertainty and robustness by segment in H2 2026 versus H2 2025",
+        intent="diagnostic", requested_time_range="H2 2026 versus H2 2025",
+        required_confidence="95%", requested_dimensions=["channel"],
+    )
+    exact = EvidenceScope(temporal=TemporalEvidenceScope(
+        current_start="2026-07-01", current_end="2026-12-31",
+        previous_start="2025-07-01", previous_end="2025-12-31",
+    ))
+    evidence = _evidence("ev_1", "compare_periods_inference", scope=exact)
+    evidence.evidence_type = "STATISTICAL_RESULT"
+    result = assess_coverage(
+        question, _plan("compare_periods_inference"), [evidence], date_columns=["date"],
+        categorical_columns=["channel"], executed_tools=["compare_periods_inference"], recovery_finished=True,
+    )
+    assert next(item for item in result.requirements if item.kind == "two_period_inference").supported
+
+
+def test_two_period_evidence_with_mismatched_population_filter_is_rejected():
+    question = AnalyticalQuestion(
+        original_question="Compare uncertainty for region North in H2 2026 versus H2 2025",
+        intent="diagnostic", requested_time_range="H2 2026 versus H2 2025",
+        requested_population="region == North", required_confidence="95%",
+    )
+    wrong = EvidenceScope(
+        population="region == South",
+        filters=[{"column": "region", "op": "==", "value": "South"}],
+        temporal=TemporalEvidenceScope(
+            current_start="2026-07-01", current_end="2026-12-31",
+            previous_start="2025-07-01", previous_end="2025-12-31",
+        ),
+    )
+    evidence = _evidence("ev_1", "compare_periods_inference", scope=wrong)
+    evidence.evidence_type = "STATISTICAL_RESULT"
+    result = assess_coverage(
+        question, _plan("compare_periods_inference"), [evidence], date_columns=["date"],
+        categorical_columns=["region"], executed_tools=["compare_periods_inference"], recovery_finished=True,
+    )
+    assert not next(item for item in result.requirements if item.kind == "two_period_inference").supported
+
+
+def test_post_outcome_field_is_descriptive_and_cannot_support_causal_hypothesis():
+    call = ToolCallRecord(
+        tool="correlation_analysis",
+        params={"columns": ["duration", "post_resolution_rating"]},
+        result={"correlations": [{"column_a": "duration", "column_b": "post_resolution_rating", "correlation": .9}]},
+    )
+    evidence = _to_evidence(0, call)
+    assert evidence.causal_eligible is False
+    hypothesis = Hypothesis(
+        id="h1", description="Post resolution rating caused duration changes.", is_causal=True,
+    )
+    [updated] = update_hypothesis_status([hypothesis], [evidence], [])
+    assert updated.status == "untested"
+    assert updated.evidence_for == []

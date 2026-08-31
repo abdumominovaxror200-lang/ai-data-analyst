@@ -75,6 +75,8 @@ def reason(request: ReasonRequest) -> ReasonResponse:
                 population=e.population,
                 scope=e.scope.model_dump(mode="json") if e.scope else None,
                 sample_size=e.sample_size,
+                causal_eligible=e.causal_eligible,
+                causal_restriction=e.causal_restriction,
             )
             for e in result.evidence
         ],

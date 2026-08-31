@@ -16,7 +16,10 @@ CoverageStage = Literal["planned", "selected", "executed", "evidenced", "unavail
 # component -- satisfied ONLY by real, evidenced `mix_decomposition` tool output
 # (see _requirements below), never by group_and_aggregate, contribution_analysis,
 # charts, or any temporal grouping, which answer related but different questions.
-RequirementKind = Literal["temporal", "segment", "statistical", "outlier", "mix_decomposition"]
+RequirementKind = Literal[
+    "temporal", "segment", "statistical", "outlier", "mix_decomposition",
+    "two_period_inference", "localized_change", "outlier_robustness",
+]
 ObligationKind = Literal["required_analytical", "optional_supporting", "conditional_data_quality"]
 
 _TEMPORAL_TOOLS = {
@@ -33,9 +36,12 @@ _PRESENTATION_TOOLS = {
 _CONDITIONAL_DATA_QUALITY_TOOLS = {
     "duplicate_analysis", "data_quality_report", "analyze_cardinality", "detect_anomalies",
 }
-_OUTLIER_TOOLS = {"outlier_analysis_multivariate", "detect_anomalies"}
+_OUTLIER_TOOLS = {"outlier_analysis_multivariate", "detect_anomalies", "period_outlier_sensitivity"}
 _SPECIALIZED_SEGMENT_TOOLS = {"rfm_analysis", "cohort_analysis", "churn_risk_analysis"}
 _MIX_DECOMPOSITION_TOOLS = {"mix_decomposition"}
+_TWO_PERIOD_INFERENCE_TOOLS = {"compare_periods_inference"}
+_LOCALIZED_CHANGE_TOOLS = {"localized_period_change"}
+_OUTLIER_SENSITIVITY_TOOLS = {"period_outlier_sensitivity"}
 
 # Mix Decomposition Engine Phase 2: deterministic tool-selection rule -- a
 # requirement is detected ONLY when the question asks BOTH halves together
@@ -119,6 +125,13 @@ def assess_coverage(
     # recovery_targets mechanism unchanged.
     if "mix_decomposition" not in planned_tools and _mix_decomposition_relevant(question, plan):
         planned_tools.append("mix_decomposition")
+    for tool, relevant in (
+        ("compare_periods_inference", _two_period_inference_relevant(question, plan)),
+        ("localized_period_change", _localized_change_relevant(question, plan)),
+        ("period_outlier_sensitivity", _outlier_robustness_relevant(question, plan)),
+    ):
+        if relevant and tool not in planned_tools:
+            planned_tools.append(tool)
     registered = set(TOOL_CATEGORY_MAP)
     selectable = tool_names_for_categories(plan.capability_categories)
     evidenced_tools = {item.source_tool for item in evidence}
@@ -272,6 +285,28 @@ def _requirements(
                     "No mix decomposition call separated the observed change into a composition/mix "
                     "component and a within-segment component."),
         ))
+    requested_scope = _requested_temporal_scope(question.requested_time_range)
+    for kind, tools, relevant, explanation in (
+        ("two_period_inference", _TWO_PERIOD_INFERENCE_TOOLS, _two_period_inference_relevant(question, plan),
+         "No exact-scope independent two-period inference produced usable evidence."),
+        ("localized_change", _LOCALIZED_CHANGE_TOOLS, _localized_change_relevant(question, plan),
+         "No exact-scope period-by-segment change analysis produced usable evidence."),
+        ("outlier_robustness", _OUTLIER_SENSITIVITY_TOOLS, _outlier_robustness_relevant(question, plan),
+         "No exact-scope raw-versus-robust period sensitivity analysis produced usable evidence."),
+    ):
+        if relevant:
+            supporting = [
+                item.id for item in evidence
+                if item.source_tool in tools
+                and _covers_temporal(item, normalized_dates, requested_scope)
+                and _covers_requested_population(item, question.requested_population)
+                and (kind != "localized_change" or _covers_requested_segment(item, question, categorical_columns))
+            ]
+            requirements.append(AnalyticalRequirement(
+                kind=kind, required_tools=sorted(tools), supported=bool(supporting),
+                supporting_evidence=supporting,
+                reason=("The exact requested scope has the required deterministic evidence." if supporting else explanation),
+            ))
     return requirements
 
 
@@ -283,6 +318,15 @@ def _tool_obligation(
     if tool in _CONDITIONAL_DATA_QUALITY_TOOLS:
         required = _data_quality_relevant(tool, question, plan, evidence)
         return "conditional_data_quality", required
+    if tool in _TWO_PERIOD_INFERENCE_TOOLS:
+        required = _two_period_inference_relevant(question, plan)
+        return ("required_analytical" if required else "optional_supporting"), required
+    if tool in _LOCALIZED_CHANGE_TOOLS:
+        required = _localized_change_relevant(question, plan)
+        return ("required_analytical" if required else "optional_supporting"), required
+    if tool in _OUTLIER_SENSITIVITY_TOOLS:
+        required = _outlier_robustness_relevant(question, plan)
+        return ("required_analytical" if required else "optional_supporting"), required
     if tool in _STATISTICAL_TOOLS:
         required = _statistical_relevant(question, plan)
         return ("required_analytical" if required else "optional_supporting"), required
@@ -335,6 +379,24 @@ def _statistical_relevant(question: AnalyticalQuestion, plan: AnalysisPlan) -> b
 
 def _outlier_relevant(question: AnalyticalQuestion, plan: AnalysisPlan) -> bool:
     return _contains_any(_objective_text(question, plan), ("outlier", "extreme", "anomal", "robustness", "robust"))
+
+
+def _two_period_inference_relevant(question: AnalyticalQuestion, plan: AnalysisPlan) -> bool:
+    return _requested_temporal_scope(question.requested_time_range) is not None and _statistical_relevant(question, plan)
+
+
+def _localized_change_relevant(question: AnalyticalQuestion, plan: AnalysisPlan) -> bool:
+    text = _objective_text(question, plan)
+    return _requested_temporal_scope(question.requested_time_range) is not None and _contains_any(
+        text, ("localized", "which segment", "segment changed", "changed most", "by segment", "by category")
+    )
+
+
+def _outlier_robustness_relevant(question: AnalyticalQuestion, plan: AnalysisPlan) -> bool:
+    text = _objective_text(question, plan)
+    return _requested_temporal_scope(question.requested_time_range) is not None and _contains_any(
+        text, ("robustness", "robust to", "sensitivity", "after excluding", "after removing")
+    )
 
 
 def _mix_decomposition_relevant(question: AnalyticalQuestion, plan: AnalysisPlan) -> bool:
@@ -402,7 +464,25 @@ def _covers_segment(evidence: Evidence, dimension: str) -> bool:
     group_by = evidence.result_summary.get("group_by")
     if isinstance(group_by, str) and _normalize(group_by) == normalized_dimension:
         return True
+    segment_dimension = evidence.result_summary.get("segment_dimension")
+    if isinstance(segment_dimension, str) and _normalize(segment_dimension) == normalized_dimension:
+        return True
     return _population_mentions(evidence.population, normalized_dimension)
+
+
+def _covers_requested_segment(
+    evidence: Evidence, question: AnalyticalQuestion, categorical_columns: list[str]
+) -> bool:
+    valid = {_normalize(item) for item in categorical_columns}
+    requested = [item for item in question.requested_dimensions if _normalize(item) in valid]
+    return bool(requested) and any(_covers_segment(evidence, item) for item in requested)
+
+
+def _covers_requested_population(evidence: Evidence, requested_population: str | None) -> bool:
+    if not requested_population:
+        return True
+    actual = evidence.scope.population if evidence.scope else evidence.population
+    return actual is not None and _normalize(actual) == _normalize(requested_population)
 
 
 def _population_mentions(population: str | None, dimension: str) -> bool:

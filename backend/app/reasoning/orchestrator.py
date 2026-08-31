@@ -185,7 +185,10 @@ class ReasoningOrchestrator:
             grounding = evaluate_recommendation_grounding(recommendation, findings, evidence, hypotheses, limitations)
             if grounding.violations:
                 trace.append(f"recommendation grounding violations: {grounding.violations}")
-            if grounding.adjusted_confidence != recommendation.confidence:
+            if any(item.startswith("post-outcome evidence") for item in grounding.violations):
+                trace.append("recommendation withheld: post-outcome evidence cannot be an action basis")
+                recommendation = None
+            if recommendation is not None and grounding.adjusted_confidence != recommendation.confidence:
                 trace.append(
                     f"recommendation confidence capped: {recommendation.confidence!r} -> "
                     f"{grounding.adjusted_confidence!r} (evidence strength: {grounding.evidence_strength})"

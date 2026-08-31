@@ -96,6 +96,8 @@ class Evidence(BaseModel):
     sample_size: int | None = None
     limitations: list[str] = Field(default_factory=list)
     confidence_info: str | None = None
+    causal_eligible: bool = True
+    causal_restriction: str | None = None
     tool_call_ref: str  # e.g. "tool_call[0]" -- index into the underlying ToolCallRecord list
 
 
