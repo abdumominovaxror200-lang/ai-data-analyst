@@ -238,7 +238,8 @@ def test_agent_still_produces_a_real_answer_when_payload_is_present():
     agent = DataAnalystAgent(MockProvider(script))
     result = agent.ask(record, "Show me all revenue rows.")
 
-    assert result["answer"] == "Here is the revenue breakdown, including one unusual category value."
+    assert result["answer"].startswith("Understood as:")
+    assert result["answer"].endswith("Here is the revenue breakdown, including one unusual category value.")
     assert len(result["tool_calls"]) == 1
     assert result["tool_calls"][0].result["matched_rows"] == len(record.df)
 

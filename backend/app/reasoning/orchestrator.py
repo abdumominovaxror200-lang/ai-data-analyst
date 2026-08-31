@@ -31,6 +31,7 @@ from app.agent.providers import LLMProvider
 from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
 from app.data_quality_gate import evaluate_data_quality
+from app.interpretation import prepend_interpretation
 from app.reasoning import confound_detection, contradiction_detection, epistemic_checks, executor, hypothesis_evaluator, planner, question_parser, verifier
 from app.reasoning.analytical_audit import build_analytical_audit
 from app.reasoning.coverage import CoverageAssessment, assess_coverage
@@ -70,7 +71,7 @@ class ReasoningOrchestrator:
         trace.append(f"premise validation: {len(limitations)} limitation(s) found")
 
         if _requested_field_missing(limitations):
-            return self._stop_early_missing_field(question, claims, limitations, trace, data_caveats)
+            return self._stop_early_missing_field(record, question, claims, limitations, trace, data_caveats)
 
         # --- LLM call 2: analysis plan + capability-category selection ---
         plan = planner.plan_analysis(self._provider, question, claims, limitations)
@@ -78,7 +79,7 @@ class ReasoningOrchestrator:
 
         if not plan.capability_categories:
             trace.append("stopping: no applicable capability category for this question")
-            return self._stop_unavailable_capability(question, claims, plan, limitations, trace, data_caveats)
+            return self._stop_unavailable_capability(record, question, claims, plan, limitations, trace, data_caveats)
 
         # --- execute: existing agent/tool_router loop, unmodified ---
         evidence, _raw_narrative, executed_tools = executor.execute_plan(
@@ -220,6 +221,10 @@ class ReasoningOrchestrator:
         )
         trace.append(f"analytical audit: conclusion_status={audit.conclusion_status}")
 
+        echo_params = evidence[0].params if evidence else {}
+        metric_hint = question.requested_metrics[0] if question.requested_metrics else None
+        final_text = prepend_interpretation(final_text, record.df, echo_params, metric_hint)
+
         return AnalysisResult(
             question=question,
             claims=claims,
@@ -239,7 +244,7 @@ class ReasoningOrchestrator:
 
     # --- early-stop branches (Phase 3B.7) -----------------------------------------
 
-    def _stop_early_missing_field(self, question, claims, limitations, trace, data_caveats) -> AnalysisResult:
+    def _stop_early_missing_field(self, record, question, claims, limitations, trace, data_caveats) -> AnalysisResult:
         trace.append("stopping: a requested metric or dimension does not exist in this dataset")
         finding = Finding(
             id="finding_0",
@@ -249,6 +254,8 @@ class ReasoningOrchestrator:
         final_text, _rec, _hedged, _matched = synthesize(
             self._provider, question, claims, None, [], [finding], [], limitations
         )
+        metric_hint = question.requested_metrics[0] if question.requested_metrics else None
+        final_text = prepend_interpretation(final_text, record.df, metric_hint=metric_hint)
         violations = epistemic_checks.check_all(question, claims, [finding], [], [], limitations, None, final_text)
         audit = build_analytical_audit(limitations, [], [], [], None, False, [])
         return AnalysisResult(
@@ -267,7 +274,7 @@ class ReasoningOrchestrator:
             analytical_audit=audit,
         )
 
-    def _stop_unavailable_capability(self, question, claims, plan, limitations, trace, data_caveats) -> AnalysisResult:
+    def _stop_unavailable_capability(self, record, question, claims, plan, limitations, trace, data_caveats) -> AnalysisResult:
         finding = Finding(
             id="finding_0",
             statement="No analytical capability in this system can address this question.",
@@ -282,6 +289,8 @@ class ReasoningOrchestrator:
         final_text, _rec, _hedged, _matched = synthesize(
             self._provider, question, claims, plan, [], [finding], [], all_limitations
         )
+        metric_hint = question.requested_metrics[0] if question.requested_metrics else None
+        final_text = prepend_interpretation(final_text, record.df, metric_hint=metric_hint)
         violations = epistemic_checks.check_all(
             question, claims, [finding], [], list(plan.hypotheses), all_limitations, None, final_text
         )

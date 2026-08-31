@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from app.agent.param_sanity import validate_tool_params
 from app.datasets.storage import DatasetRecord
 from app.sql.duckdb_source import DuckDBDataSource
 from app.sql.sqlite_source import SQLiteDataSource
@@ -915,4 +916,5 @@ class ToolRouter:
         handler = _HANDLERS.get(name)
         if handler is None:
             raise ToolExecutionError(f"Unknown tool '{name}'.")
+        validate_tool_params(record.df, name, params)
         return handler(record, **params)

@@ -7,6 +7,7 @@ from app.agent.providers import LLMProvider
 from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
 from app.data_quality_gate import evaluate_data_quality
+from app.interpretation import prepend_interpretation
 from app.schemas import ToolCallRecord
 from app.reasoning.contracts import Limitation
 from app.tools.errors import ToolExecutionError
@@ -101,10 +102,14 @@ class DataAnalystAgent:
         self._router = tool_router or ToolRouter()
 
     def ask(self, record: DatasetRecord, question: str, history: list[dict[str, str]] | None = None) -> dict:
+        def answer_with_interpretation(answer: str, calls: list[ToolCallRecord] | None = None) -> str:
+            params = calls[0].params if calls else {}
+            return prepend_interpretation(answer, record.df, params)
+
         data_caveats, quality_limitations = evaluate_data_quality(record.df)
         if any(item.severity == "blocks_conclusion" for item in quality_limitations):
             return {
-                "answer": (
+                "answer": answer_with_interpretation(
                     "A reliable analysis cannot be completed because one or more columns have less than "
                     "50% data coverage. The verified data-quality limitations are shown below; additional "
                     "complete data is required before drawing a conclusion."
@@ -126,7 +131,9 @@ class DataAnalystAgent:
                 text=f"Derived metric(s) {names} need an explicit numerator, denominator, aggregation, and eligible population.",
             )
             return {
-                "answer": f"Before analyzing {names}, please define its numerator, denominator, aggregation, and eligible population.",
+                "answer": answer_with_interpretation(
+                    f"Before analyzing {names}, please define its numerator, denominator, aggregation, and eligible population."
+                ),
                 "tool_calls": [], "tool_attempts": [], "charts": [],
                 "data_caveats": data_caveats, "limitations": quality_limitations + [limitation],
             }
@@ -166,7 +173,9 @@ class DataAnalystAgent:
 
             if not response.tool_calls:
                 return {
-                    "answer": response.content or "I couldn't generate an answer.",
+                    "answer": answer_with_interpretation(
+                        response.content or "I couldn't generate an answer.", tool_call_records
+                    ),
                     "tool_calls": tool_call_records,
                     "tool_attempts": tool_attempts,
                     "charts": charts,
@@ -262,7 +271,9 @@ class DataAnalystAgent:
                 )
                 final = self._provider.complete(messages, [])
                 return {
-                    "answer": final.content or "I couldn't generate an answer.",
+                    "answer": answer_with_interpretation(
+                        final.content or "I couldn't generate an answer.", tool_call_records
+                    ),
                     "tool_calls": tool_call_records,
                     "tool_attempts": tool_attempts,
                     "charts": charts,
@@ -271,9 +282,10 @@ class DataAnalystAgent:
                 }
 
         return {
-            "answer": (
+            "answer": answer_with_interpretation(
                 "I gathered several results but reached the tool-call limit before finishing. "
-                "Try asking a more specific follow-up question."
+                "Try asking a more specific follow-up question.",
+                tool_call_records,
             ),
             "tool_calls": tool_call_records,
             "tool_attempts": tool_attempts,

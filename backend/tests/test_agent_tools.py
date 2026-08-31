@@ -171,7 +171,8 @@ def test_agent_stops_early_on_duplicate_tool_calls(record):
     # Stops after 3 provider round-trips (2 duplicate attempts + 1 forced final answer),
     # nowhere near the 10-iteration hard cap.
     assert len(provider.calls) == 3
-    assert result["answer"] == "Based on what I already found, here is the summary."
+    assert result["answer"].startswith("Understood as:")
+    assert result["answer"].endswith("Based on what I already found, here is the summary.")
 
     # The forced final call must have gone out with no tools (so the model can't just
     # request yet another duplicate instead of answering).
