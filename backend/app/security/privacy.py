@@ -42,8 +42,20 @@ _NAME_HINTS: dict[PIIKind, tuple[str, ...]] = {
     PIIKind.SENSITIVE_IDENTIFIER: ("customer_id", "user_id", "account_id", "merchant_id", "employee_id", "device_id", "ip_address"),
 }
 _EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
-_PHONE_RE = re.compile(r"(?<!\d)(?:\+?\d[\s().-]?){8,15}(?!\d)")
-_GOV_RE = re.compile(r"\b(?:\d{3}-\d{2}-\d{4}|[A-Z]{1,2}\d{6,9})\b", re.I)
+# Deliberately conservative: a bare run of digits (order IDs, SKUs, timestamps,
+# large integers) is NOT a phone number. Require an international "+CC" prefix or
+# an explicitly grouped/parenthesised layout, then confirm the digit count in
+# _classify_value. This avoids flagging whole numeric analysis columns as PII.
+_PHONE_RE = re.compile(
+    r"(?<![\w])"
+    r"(?:\+\d{1,3}[\s.\-]?)?"
+    r"(?:\(\d{2,4}\)[\s.\-]?)?"
+    r"\d{2,6}(?:[\s.\-]\d{2,6}){1,5}"
+    r"(?![\w])"
+)
+# Uppercase-only: real passport / national-ID prefixes are upper case; dropping
+# re.I stops lower-case product codes like "ab1234567" from matching.
+_GOV_RE = re.compile(r"\b(?:\d{3}-\d{2}-\d{4}|[A-Z]{1,2}\d{6,9})\b")
 _ADDRESS_RE = re.compile(r"\b\d{1,6}\s+[\w.'-]+(?:\s+[\w.'-]+){0,5}\s(?:street|st|road|rd|avenue|ave|lane|ln|drive|dr)\b", re.I)
 _PATH_RE = re.compile(r"(?:[A-Za-z]:\\|/)(?:[^\s<>:'\"|?*]+[\\/])+[^\s<>:'\"|?*]*")
 _SECRET_RE = re.compile(r"(?i)\b(?:bearer\s+|sk-|api[_-]?key\s*[:=]\s*)[A-Za-z0-9._-]{8,}")
@@ -76,6 +88,32 @@ class PrivacyProfile:
         return {alias: source for source, alias in self.aliases.items()}
 
 
+# Free-text PII kinds have no reliable value-level regex, so for a column whose
+# *name* signals one of these we still quarantine name-like sampled values.
+_FREE_TEXT_PII: frozenset[PIIKind] = frozenset({PIIKind.NAME, PIIKind.ADDRESS})
+
+
+def _is_quarantinable(value: str) -> bool:
+    """`quarantined_values` drives a blind substring replace over the whole
+    prompt, so only accept values specific enough that replacing them cannot
+    corrupt unrelated text: at least 6 chars, not a short bare number."""
+    stripped = value.strip()
+    if not (6 <= len(stripped) <= 256):
+        return False
+    if stripped.isdigit() and len(stripped) < 9:
+        return False
+    return stripped.lower() not in _SAFE_PAYLOAD_VALUES
+
+
+def _looks_like_free_text_pii(value: str) -> bool:
+    stripped = value.strip()
+    if not (6 <= len(stripped) <= 256):
+        return False
+    if stripped.replace(" ", "").isdigit():
+        return False
+    return " " in stripped or len(stripped) >= 10
+
+
 def classify_dataset(df: pd.DataFrame) -> PrivacyProfile:
     aliases = {str(column): f"column_{index}" for index, column in enumerate(df.columns, 1)}
     pii_columns: dict[str, tuple[PIIKind, ...]] = {}
@@ -83,18 +121,21 @@ def classify_dataset(df: pd.DataFrame) -> PrivacyProfile:
     sensitive_hashes: set[str] = set()
     for column in df.columns:
         name = str(column)
-        kinds = set(_classify_name(name))
+        name_kinds = _classify_name(name)
+        kinds = set(name_kinds)
         sample = df[column].dropna().astype(str).head(200)
         for value in sample:
             value_kinds = _classify_value(value)
             kinds.update(value_kinds)
-            if value_kinds or kinds:
-                if 3 <= len(value) <= 256:
-                    quarantined.add(value)
+            if value_kinds and _is_quarantinable(value):
+                quarantined.add(value)
+            elif (name_kinds & _FREE_TEXT_PII) and _looks_like_free_text_pii(value):
+                quarantined.add(value)
         if kinds:
             pii_columns[name] = tuple(sorted(kinds, key=str))
             for value in df[column].dropna().astype(str):
-                sensitive_hashes.add(_value_hash(value))
+                if len(value.strip()) >= 3:
+                    sensitive_hashes.add(_value_hash(value))
     return PrivacyProfile(
         aliases=aliases,
         pii_columns=pii_columns,
@@ -115,15 +156,16 @@ def _classify_name(name: str) -> set[PIIKind]:
 def _classify_value(value: str) -> set[PIIKind]:
     kinds: set[PIIKind] = set()
     if _EMAIL_RE.search(value): kinds.add(PIIKind.EMAIL)
-    phone_digits = re.sub(r"\D", "", value)
-    if _PHONE_RE.search(value) or (
-        8 <= len(phone_digits) <= 15
-        and (value.strip().startswith("+") or bool(re.search(r"[\s().-]", value)))
-    ):
-        kinds.add(PIIKind.PHONE)
+    phone_match = _PHONE_RE.search(value)
+    if phone_match:
+        # A grouped/prefixed layout alone is not enough — confirm a realistic
+        # phone digit count so "12 3456" or "2024 900" style non-phones drop out.
+        phone_digits = re.sub(r"\D", "", phone_match.group())
+        if 9 <= len(phone_digits) <= 15 or (value.strip().startswith("+") and 8 <= len(phone_digits) <= 15):
+            kinds.add(PIIKind.PHONE)
     if _GOV_RE.search(value): kinds.add(PIIKind.GOVERNMENT_ID)
     if _ADDRESS_RE.search(value): kinds.add(PIIKind.ADDRESS)
-    digits = phone_digits
+    digits = re.sub(r"\D", "", value)
     if 13 <= len(digits) <= 19 and _luhn_valid(digits): kinds.add(PIIKind.PAYMENT_CARD)
     return kinds
 
@@ -215,6 +257,11 @@ def redact_text(text: str, profile: PrivacyProfile | None = None) -> str:
         for value in profile.quarantined_values:
             result = result.replace(value, "[REDACTED]")
         for source, alias in sorted(profile.aliases.items(), key=lambda item: len(item[0]), reverse=True):
+            # A 1-char column name aliased across free text turns every stray
+            # "a"/"x" in prose into "column_N"; skip those in the text pass. The
+            # structured tool-arg path (_unalias) still maps them exactly.
+            if len(source) < 2:
+                continue
             result = re.sub(rf"(?<![\w]){re.escape(source)}(?![\w])", alias, result)
     return result
 

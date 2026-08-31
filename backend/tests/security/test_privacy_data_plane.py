@@ -12,6 +12,7 @@ from app.security.privacy import (
     PIIKind,
     PrivacyEnforcingProvider,
     classify_dataset,
+    redact_text,
     validate_local_endpoint,
 )
 
@@ -43,6 +44,44 @@ def test_pii_detected_by_names_and_value_patterns() -> None:
     assert PIIKind.EMAIL in profile.pii_columns["customer_email"]
     assert PIIKind.PHONE in profile.pii_columns["contact"]
     assert PIIKind.PAYMENT_CARD in profile.pii_columns["card_ref"]
+
+
+def test_bare_nine_digit_numbers_are_not_classified_as_phone() -> None:
+    profile = classify_dataset(pd.DataFrame({"order_number": ["100238471", "100238472"]}))
+    assert "order_number" not in profile.pii_columns or PIIKind.PHONE not in profile.pii_columns["order_number"]
+
+
+def test_lowercase_alphanumeric_codes_are_not_government_ids() -> None:
+    profile = classify_dataset(pd.DataFrame({"product_code": ["ab1234567"]}))
+    assert "product_code" not in profile.pii_columns or PIIKind.GOVERNMENT_ID not in profile.pii_columns["product_code"]
+
+
+def test_short_grouped_numbers_are_not_classified_as_phone() -> None:
+    profile = classify_dataset(pd.DataFrame({"bucket": ["12 34"]}))
+    assert "bucket" not in profile.pii_columns or PIIKind.PHONE not in profile.pii_columns["bucket"]
+
+
+def test_generic_short_values_are_not_quarantined() -> None:
+    profile = classify_dataset(pd.DataFrame({"status": ["2024", "active", "closed"]}))
+    assert {"2024", "active", "closed"}.isdisjoint(profile.quarantined_values)
+
+
+def test_international_grouped_phone_numbers_remain_detected() -> None:
+    profile = classify_dataset(pd.DataFrame({"contact": ["+1 (202) 555-0198", "+44 7700 900123"]}))
+    assert PIIKind.PHONE in profile.pii_columns["contact"]
+
+
+def test_name_column_quarantines_name_like_values_not_generic_labels() -> None:
+    profile = classify_dataset(pd.DataFrame({"customer_name": ["John Smith", "North"]}))
+    assert PIIKind.NAME in profile.pii_columns["customer_name"]
+    assert "John Smith" in profile.quarantined_values
+    assert "North" not in profile.quarantined_values
+
+
+def test_one_character_column_is_not_replaced_in_free_text() -> None:
+    profile = classify_dataset(pd.DataFrame({"a": [1], "revenue": [2]}))
+    redacted = redact_text("a a a revenue trend", profile)
+    assert redacted == "a a a column_2 trend"
 
 
 def test_external_prompt_contains_no_raw_pii_source_names_paths_or_injection() -> None:

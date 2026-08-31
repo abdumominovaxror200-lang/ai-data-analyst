@@ -49,6 +49,12 @@ sensitive identifiers. All source column names are aliased for external prompts,
 not only columns classified as PII. Alias maps remain server-side and are scoped
 to one dataset/provider instance.
 
+Detection is deliberately conservative to avoid corrupting analytical context:
+bare digit runs are not treated as phone numbers, and lowercase alphanumeric
+codes are not treated as government IDs. One-character column names remain
+available for exact structured alias translation but are not replaced in free
+text, where doing so would rewrite ordinary prose.
+
 No detector can infer every domain-specific secret. Deployments handling special
 identifiers should use `local_only` or `llm_disabled`, and should still enforce
 retention, access control, encryption, and log governance outside this boundary.
