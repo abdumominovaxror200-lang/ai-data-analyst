@@ -8,14 +8,21 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.datasets.storage import DatasetNotFoundError, get_dataset_store
 from app.datasets.validation import ValidationError
-from app.schemas import ColumnInfo, DatasetProfile, UploadResponse
+from app.schemas import ColumnInfo, DatasetProfile, IngestionNoticeOut, UploadResponse
 from app.tools.profiler import profile_dataset
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _to_profile(dataset_id: str, filename: str, uploaded_at: datetime, df: pd.DataFrame, metrics=None) -> DatasetProfile:
+def _to_profile(
+    dataset_id: str,
+    filename: str,
+    uploaded_at: datetime,
+    df: pd.DataFrame,
+    metrics=None,
+    ingestion_notices=None,
+) -> DatasetProfile:
     raw = profile_dataset(df)
     return DatasetProfile(
         dataset_id=dataset_id,
@@ -32,6 +39,7 @@ def _to_profile(dataset_id: str, filename: str, uploaded_at: datetime, df: pd.Da
         duplicate_rows=raw["duplicate_rows"],
         date_ranges=raw["date_ranges"],
         metrics=metrics.public_definitions() if metrics else [],
+        ingestion_notices=[IngestionNoticeOut(**vars(notice)) for notice in ingestion_notices or []],
     )
 
 
@@ -44,7 +52,9 @@ async def upload_dataset(file: UploadFile = File(...)) -> UploadResponse:
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    profile = _to_profile(record.id, record.original_filename, record.uploaded_at, record.df, record.metrics)
+    profile = _to_profile(
+        record.id, record.original_filename, record.uploaded_at, record.df, record.metrics, record.ingestion_notices
+    )
     logger.info("upload complete dataset_id=%s filename=%s", record.id, record.original_filename)
     return UploadResponse(dataset_id=record.id, profile=profile)
 
@@ -56,4 +66,6 @@ def get_dataset(dataset_id: str) -> DatasetProfile:
         record = store.get(dataset_id)
     except DatasetNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _to_profile(record.id, record.original_filename, record.uploaded_at, record.df, record.metrics)
+    return _to_profile(
+        record.id, record.original_filename, record.uploaded_at, record.df, record.metrics, record.ingestion_notices
+    )

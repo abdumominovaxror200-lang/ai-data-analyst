@@ -19,6 +19,20 @@ class ColumnInfo(BaseModel):
     max_date: str | None = None
 
 
+class IngestionNoticeOut(BaseModel):
+    code: Literal[
+        "encoding_detected",
+        "mixed_date_formats",
+        "ambiguous_date_values",
+        "numeric_format_normalized",
+        "multi_sheet_combined",
+        "merged_header_flattened",
+    ]
+    message: str
+    column: str | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
 class DatasetProfile(BaseModel):
     dataset_id: str
     filename: str
@@ -34,6 +48,7 @@ class DatasetProfile(BaseModel):
     date_ranges: dict[str, dict[str, str]] = Field(default_factory=dict)
     uploaded_at: datetime
     metrics: list[MetricDefinition] = Field(default_factory=list)
+    ingestion_notices: list[IngestionNoticeOut] = Field(default_factory=list)
 
 
 class UploadResponse(BaseModel):
