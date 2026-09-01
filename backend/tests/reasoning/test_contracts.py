@@ -59,10 +59,12 @@ def test_uncertainty_level_is_the_four_way_categorical_scale():
         Uncertainty(level="very_sure")
 
 
-def test_limitation_has_seven_categories():
+def test_limitation_has_typed_categories():
     valid = {
         "missing_data",
         "insufficient_coverage",
+        "insufficient_data",
+        "multiple_comparisons",
         "sample_size",
         "unavailable_capability",
         "methodological",

@@ -174,6 +174,8 @@ Finding.model_rebuild()
 LimitationCategory = Literal[
     "missing_data",
     "insufficient_coverage",
+    "insufficient_data",
+    "multiple_comparisons",
     "sample_size",
     "unavailable_capability",
     "methodological",
