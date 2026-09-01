@@ -32,7 +32,17 @@ from app.agent.tool_router import ToolRouter
 from app.datasets.storage import DatasetRecord
 from app.data_quality_gate import evaluate_data_quality
 from app.interpretation import prepend_interpretation
-from app.reasoning import confound_detection, contradiction_detection, epistemic_checks, executor, hypothesis_evaluator, planner, question_parser, verifier
+from app.reasoning import (
+    confound_detection,
+    contradiction_detection,
+    epistemic_checks,
+    executor,
+    hypothesis_evaluator,
+    inferential_safety,
+    planner,
+    question_parser,
+    verifier,
+)
 from app.reasoning.analytical_audit import build_analytical_audit
 from app.reasoning.coverage import CoverageAssessment, assess_coverage
 from app.reasoning.conclusion_guard import sanitize_blocked_hypotheses
@@ -125,15 +135,6 @@ class ReasoningOrchestrator:
                 date_columns=_profile["date_columns"], categorical_columns=_profile.get("categorical_columns", []), executed_tools=executed_tools,
                 recovery_finished=False,
             )
-        if not evidence:
-            limitations = limitations + [
-                Limitation(
-                    category="missing_data",
-                    text="No tool produced usable evidence for this question with the selected capabilities.",
-                    severity="reduces_confidence",
-                )
-            ]
-
         fact_ledger = build_fact_ledger(evidence)
         trace.append(f"fact ledger: {len(fact_ledger.facts)} numeric fact(s) recorded")
 
@@ -144,6 +145,16 @@ class ReasoningOrchestrator:
         trace.append(
             f"findings: {len(findings)}, cross-checked: {sum(1 for f in findings if f.cross_checked)}"
         )
+
+        multiplicity = inferential_safety.assess_multiple_comparisons(evidence)
+        if multiplicity.limitation is not None:
+            limitations.append(multiplicity.limitation)
+            trace.append(f"multiple-comparisons warning: {multiplicity.comparison_count} unadjusted tests")
+
+        insufficient = inferential_safety.insufficient_data_limitation(question, plan, evidence)
+        if insufficient is not None:
+            limitations.append(insufficient)
+            trace.append("conclusion blocked: insufficient data for the requested analysis")
 
         # --- deterministic (Phase 5): confounding-variable detection -- runs against
         # the real dataset (not just Evidence), so it lives here rather than in
@@ -181,6 +192,7 @@ class ReasoningOrchestrator:
         final_text, recommendation, was_hedged, matched_phrases = synthesize(
             self._provider, question, claims, plan, evidence, findings, hypotheses, limitations
         )
+        final_text = inferential_safety.ensure_multiple_comparisons_warning_visible(final_text, multiplicity)
         if was_hedged:
             trace.append(f"causation guard: hedged unsupported causal language {matched_phrases}")
 

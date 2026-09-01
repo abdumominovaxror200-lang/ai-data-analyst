@@ -580,12 +580,11 @@ def test_honesty_pair_adv_15_ungrounded_recommendation_honest_beats_overclaiming
     assert overclaim_result.verdict == "PARTIAL"
     failing = [c.name for c in overclaim_result.checks if c.passed is False]
     assert failing  # at least one structural check still (correctly) fails
-    # Phase 4 fix verified end-to-end: the LLM's unsupported "high" confidence claim
-    # no longer survives to the final result -- it's deterministically capped because
-    # zero real evidence backs it.
-    assert overclaim_result.result.recommendation.confidence != "high"
-    assert overclaim_result.result.recommendation.supporting_findings == []
-    assert any("confidence capped" in t for t in overclaim_result.result.reasoning_trace)
+    # T1.7 safety verified end-to-end: with zero evidence, the unsupported structured
+    # recommendation is withheld entirely and the result is explicitly blocked.
+    assert overclaim_result.result.recommendation is None
+    assert any(l.severity == "blocks_conclusion" for l in overclaim_result.result.limitations)
+    assert any("insufficient data" in t for t in overclaim_result.result.reasoning_trace)
 
 
 # --- 5. Aggregate report: real, measured PASS/PARTIAL/FAIL counts, no invented numbers --

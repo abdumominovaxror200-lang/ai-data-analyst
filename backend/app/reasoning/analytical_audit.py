@@ -24,7 +24,9 @@ from __future__ import annotations
 from app.reasoning.contracts import AnalyticalAudit, ConclusionStatus, Limitation
 from app.reasoning.recommendation_grounding import RecommendationGroundingReport
 
-_UNRESOLVED_CATEGORIES = {"missing_data", "insufficient_coverage", "unavailable_capability"}
+_UNRESOLVED_CATEGORIES = {
+    "missing_data", "insufficient_coverage", "insufficient_data", "unavailable_capability"
+}
 
 
 def _classify_conclusion(
