@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { apiErrorMessage, downloadExcelReport, generateReport } from "../../api/client";
+import {
+  apiErrorMessage,
+  downloadExcelReport,
+  downloadPowerPointReport,
+  downloadWordReport,
+  generateReport,
+} from "../../api/client";
 import type { DatasetProfile, ReportPayload } from "../../types";
 import { Badge, Button, Card, CardHeader, EmptyState, ErrorBanner, Spinner, StatTile } from "../primitives";
 
@@ -48,6 +54,23 @@ export function ReportTab({ profile }: { profile: DatasetProfile }) {
     }
   };
 
+  const downloadOfficeReport = async (format: "docx" | "pptx") => {
+    setError(null);
+    try {
+      const blob = format === "docx"
+        ? await downloadWordReport(profile.dataset_id)
+        : await downloadPowerPointReport(profile.dataset_id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${profile.filename.replace(/\.[^.]+$/, "")}-analysis-report.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -55,7 +78,13 @@ export function ReportTab({ profile }: { profile: DatasetProfile }) {
           title="Business report"
           subtitle="A structured summary of statistics, anomalies, and correlations — computed, not narrated."
           action={
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => downloadOfficeReport("docx")}>
+                Download .docx
+              </Button>
+              <Button variant="secondary" onClick={() => downloadOfficeReport("pptx")}>
+                Download .pptx
+              </Button>
               <Button variant="secondary" onClick={downloadExcel}>
                 Download .xlsx
               </Button>

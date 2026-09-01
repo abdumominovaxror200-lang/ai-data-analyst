@@ -9,6 +9,8 @@ from fastapi.responses import StreamingResponse
 
 from app.datasets.storage import DatasetNotFoundError, get_dataset_store
 from app.reports.excel_export import build_excel_report, excel_report_filename
+from app.reports.powerpoint_export import build_powerpoint_report, powerpoint_report_filename
+from app.reports.word_export import build_word_report, word_report_filename
 from app.schemas import ReportRequest, ReportResponse
 from app.tools.errors import ToolExecutionError
 from app.tools.report import generate_report
@@ -49,4 +51,42 @@ def download_excel_report(dataset_id: str) -> StreamingResponse:
         io.BytesIO(content),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _download_document(dataset_id: str, builder, filename_builder, media_type: str, label: str) -> StreamingResponse:
+    store = get_dataset_store()
+    try:
+        record = store.get(dataset_id)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    content = builder(record)
+    filename = filename_builder(record)
+    logger.info("%s report generated dataset_id=%s", label, dataset_id)
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/reports/{dataset_id}/word")
+def download_word_report(dataset_id: str) -> StreamingResponse:
+    return _download_document(
+        dataset_id,
+        build_word_report,
+        word_report_filename,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "word",
+    )
+
+
+@router.get("/reports/{dataset_id}/powerpoint")
+def download_powerpoint_report(dataset_id: str) -> StreamingResponse:
+    return _download_document(
+        dataset_id,
+        build_powerpoint_report,
+        powerpoint_report_filename,
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "powerpoint",
     )
