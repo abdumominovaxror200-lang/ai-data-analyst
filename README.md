@@ -177,6 +177,22 @@ LLM_REASONING_EFFORT=low   # cuts reasoning-token overhead ~90%, keeps you insid
 Any other OpenAI-compatible provider (OpenAI, OpenRouter, DeepSeek) works the same way — just
 change these three-to-four values, no code change.
 
+Provider reliability and deployment tiers:
+
+- `LLM_REQUEST_TIMEOUT=60` controls the end-to-end timeout of each provider HTTP request
+  (`0 < value <= 600`). A timeout produces a sanitized provider-connectivity response.
+- `LLM_SERVICE_TIER` is optional and omitted from requests by default. Set it only to a value
+  documented by the selected paid OpenAI-compatible provider, such as `priority`; unsupported
+  providers may reject it.
+- Rate-limit and transient `500`/`502`/`503`/`504` responses are retried at most twice. The
+  client honors standard `Retry-After` seconds or HTTP-date values, then provider-specific reset
+  hints, with a maximum 20-second wait. Non-transient errors are never retried.
+- For a self-hosted OpenAI-compatible Ollama or vLLM endpoint, use
+  `LLM_EGRESS_MODE=local_only`, leave `LLM_SERVICE_TIER` empty, and set `LLM_BASE_URL` to its
+  loopback/private endpoint (for example `http://127.0.0.1:11434/v1`). The application rejects
+  a public endpoint in `local_only` mode. For hosted providers, use `external_redacted`; raw
+  sensitive dataset values remain behind the privacy boundary.
+
 ### Frontend
 
 ```bash

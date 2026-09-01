@@ -6,6 +6,8 @@ import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 _MAX_RETRIES = 2
 _MAX_BACKOFF_SECONDS = 20.0
+_RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
 _DURATION_RE = re.compile(r"(?:(?P<minutes>\d+)m)?(?:(?P<seconds>\d+(?:\.\d+)?)s)?")
 
 
@@ -43,17 +46,23 @@ class LLMProvider(ABC):
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ProviderResponse: ...
 
 
-def _parse_wait_seconds(value: str | None) -> float | None:
-    """Parses a Retry-After-style duration. Handles plain seconds ('2.3') and the
-    '15m50.4s' / '2.3s' style used by Groq's x-ratelimit-reset-* headers."""
+def _parse_wait_seconds(value: str | None, *, now: datetime | None = None) -> float | None:
+    """Parse delta-seconds, an HTTP-date, or Groq's duration-style reset hint."""
     if not value:
         return None
     match = _DURATION_RE.fullmatch(value.strip())
     if not match or not (match.group("minutes") or match.group("seconds")):
         try:
-            return float(value)
+            return max(0.0, float(value))
         except ValueError:
-            return None
+            try:
+                retry_at = parsedate_to_datetime(value)
+            except (TypeError, ValueError, OverflowError):
+                return None
+            if retry_at.tzinfo is None:
+                retry_at = retry_at.replace(tzinfo=timezone.utc)
+            current = now or datetime.now(timezone.utc)
+            return max(0.0, (retry_at - current).total_seconds())
     total = 0.0
     if match.group("minutes"):
         total += int(match.group("minutes")) * 60
@@ -77,12 +86,14 @@ class OpenAICompatibleProvider(LLMProvider):
         base_url: str,
         model: str,
         reasoning_effort: str = "",
+        service_tier: str = "",
         timeout: float = 60.0,
     ) -> None:
         if not api_key:
             raise ValueError("LLM_API_KEY is not configured.")
         self._model = model
         self._reasoning_effort = reasoning_effort
+        self._service_tier = service_tier
         self._client = httpx.Client(
             base_url=base_url.rstrip("/"),
             headers={"Authorization": f"Bearer {api_key}"},
@@ -100,6 +111,8 @@ class OpenAICompatibleProvider(LLMProvider):
             payload["tool_choice"] = "auto"
         if self._reasoning_effort:
             payload["reasoning_effort"] = self._reasoning_effort
+        if self._service_tier:
+            payload["service_tier"] = self._service_tier
 
         for attempt in range(_MAX_RETRIES + 1):
             try:
@@ -110,17 +123,24 @@ class OpenAICompatibleProvider(LLMProvider):
                 logger.warning("LLM provider network error (details redacted)")
                 raise LLMProviderError(_FRIENDLY_MESSAGES["network"]) from exc
 
-            if response.status_code == 429 and attempt < _MAX_RETRIES:
-                # Free-tier rate limits (e.g. Groq's per-minute token budget) are often
-                # short-lived — back off using the provider's own reset hint and retry
-                # rather than failing the whole multi-tool-call conversation outright.
-                wait = (
-                    _parse_wait_seconds(response.headers.get("retry-after"))
-                    or _parse_wait_seconds(response.headers.get("x-ratelimit-reset-tokens"))
-                    or 5.0
+            if response.status_code in _RETRYABLE_STATUSES and attempt < _MAX_RETRIES:
+                # Prefer the standard server instruction, then provider-specific
+                # reset metadata, then bounded exponential backoff. `is not None`
+                # deliberately preserves a valid Retry-After: 0 response.
+                wait = _first_wait_hint(
+                    response.headers.get("retry-after"),
+                    response.headers.get("x-ratelimit-reset-tokens"),
                 )
+                if wait is None:
+                    wait = min(2.0**attempt, _MAX_BACKOFF_SECONDS)
                 wait = min(wait, _MAX_BACKOFF_SECONDS)
-                logger.warning("LLM provider rate limited (attempt %d/%d), retrying in %.1fs", attempt + 1, _MAX_RETRIES, wait)
+                logger.warning(
+                    "LLM provider transient HTTP %s (attempt %d/%d), retrying in %.1fs",
+                    response.status_code,
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    wait,
+                )
                 time.sleep(wait)
                 continue
 
@@ -220,6 +240,16 @@ def build_provider_from_settings(dataset: pd.DataFrame | None = None) -> LLMProv
         base_url=settings.llm_base_url,
         model=settings.llm_model,
         reasoning_effort=settings.llm_reasoning_effort,
+        service_tier=settings.llm_service_tier,
+        timeout=settings.llm_request_timeout,
     )
     profile = classify_dataset(dataset) if dataset is not None else None
     return PrivacyEnforcingProvider(delegate, mode, profile, model=settings.llm_model)
+
+
+def _first_wait_hint(*values: str | None) -> float | None:
+    for value in values:
+        parsed = _parse_wait_seconds(value)
+        if parsed is not None:
+            return parsed
+    return None
