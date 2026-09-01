@@ -57,8 +57,8 @@ against Docker 29.7.2).
    must use `DEPLOYMENT=public`; that mode rejects `LLM_EGRESS_MODE=local_only`
    at startup and supports `external_redacted` or `llm_disabled`. Configure
    `DATASET_TTL_MINUTES` to control how long uploaded datasets remain available;
-   the default is 240 minutes, after which both memory and the upload file are
-   cleared.
+   the default is 240 minutes, after which memory, SQLite metadata, and the upload
+   file are cleared. Keep `DATASET_PERSISTENCE_ENABLED=true` for restart recovery.
 
 3. **Build and start both services**
 
@@ -93,11 +93,11 @@ against Docker 29.7.2).
 - **Ports**: backend on host `8000`, frontend on host `80`. Change the
   left-hand side of the `ports:` mappings in `docker-compose.yml` if either
   port is already taken on your machine (e.g. `"8080:80"` for the frontend).
-- **Storage**: uploaded datasets live in the `backend_storage` named Docker
+- **Storage**: uploaded datasets and `datasets.sqlite3` live in the `backend_storage` named Docker
   volume, mounted at `/app/storage` inside the backend container (matches
   `STORAGE_DIR` in `.env.example`, which resolves relative to `backend/` —
   i.e. `/app` in the container). They persist across `docker compose
-  restart`/`up` but are removed by `docker compose down -v`.
+  restart`/`up` but are removed by `docker compose down -v`. Restoration is lazy.
 - **Rebuilding after a code change**: `docker compose up --build` again — add
   `--force-recreate` if you also changed environment variables but Compose
   doesn't pick it up.

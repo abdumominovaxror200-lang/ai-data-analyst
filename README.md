@@ -284,17 +284,16 @@ upload flow is the single largest documented gap in this project — see
 - Data from the uploaded file (cell values, column names) is treated as untrusted input
   throughout the LLM-facing prompt construction — a prompt-injection payload embedded in a cell
   is inert data to the synthesizer, never an instruction, verified by dedicated adversarial cases.
-- Datasets are process-lifetime, in-memory, and never written anywhere outside
-  `STORAGE_DIR/uploads/<uuid>.<ext>`.
+- Datasets are cached in memory and persisted only in the server-owned
+  `STORAGE_DIR/uploads/<uuid>.<ext>` namespace with SQLite metadata and integrity hashes.
 - `.env` files are gitignored; nothing in `app/` logs API keys, secrets, or full dataset
   contents (see the logging calls in `app/api/*.py`).
 - CORS is restricted to the configured frontend origin(s) only.
 
 ## Limitations
 
-- **No persistence.** Datasets live in memory for the backend process's lifetime — restarting
-  the server or reloading the frontend loses the current dataset (by design for an MVP; see
-  [`docs/architecture.md`](docs/architecture.md#why-no-database-for-v1)).
+- **Local persistence only.** Retained datasets survive backend restart and can be re-analyzed
+  through their existing dataset ID. Reasoning transcripts and multi-user history are not persisted.
 - **Single dataset per session.** No joins across multiple uploaded files yet.
 - **Upload path caps out well below the large-data engine's tested scale.** See
   [Large-data engine](#large-data-engine-not-yet-wired-into-upload) above.

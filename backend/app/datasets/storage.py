@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
+import os
 import threading
 import uuid
 from dataclasses import dataclass
@@ -11,6 +14,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app.config import get_settings
+from app.datasets.catalog import DatasetCatalog, DatasetMetadata
 from app.datasets.ingestion import IngestionNotice, parse_dataset
 from app.datasets.metric_registry import MetricRegistry
 from app.datasets.validation import (
@@ -49,16 +53,26 @@ class DatasetNotFoundError(Exception):
     pass
 
 
-class DatasetStore:
-    """In-memory, process-lifetime dataset store keyed by uuid.
+class DatasetUnavailableError(DatasetNotFoundError):
+    """Persistent metadata exists but its upload cannot be restored safely."""
 
-    No database for the MVP (see reports/initial-audit.md) — datasets live for the
-    lifetime of the backend process, addressable only by their generated id.
-    """
+
+class DatasetStore:
+    """In-memory dataframe cache backed by SQLite metadata and UUID-named files."""
 
     def __init__(self) -> None:
         self._records: dict[str, DatasetRecord] = {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
+        settings = get_settings()
+        self._storage_root = settings.storage_path.resolve()
+        self._uploads_root = (self._storage_root / "uploads").resolve()
+        self._uploads_root.mkdir(parents=True, exist_ok=True)
+        self._persistence_enabled = bool(getattr(settings, "dataset_persistence_enabled", True))
+        self._catalog = (
+            DatasetCatalog(self._storage_root / "datasets.sqlite3")
+            if self._persistence_enabled
+            else None
+        )
 
     def save(self, filename: str, content: bytes) -> DatasetRecord:
         self.sweep_expired()
@@ -80,9 +94,8 @@ class DatasetStore:
         # Storage path is built entirely from our own generated id + validated
         # extension — the user-supplied filename never reaches the filesystem path,
         # which is what makes this safe against path traversal.
-        stored_path = settings.storage_path / "uploads" / f"{dataset_id}{ext}"
-        stored_path.parent.mkdir(parents=True, exist_ok=True)
-        stored_path.write_bytes(content)
+        stored_path = self._uploads_root / f"{dataset_id}{ext}"
+        temporary_path = self._uploads_root / f".{dataset_id}.tmp"
 
         record = DatasetRecord(
             id=dataset_id,
@@ -94,8 +107,33 @@ class DatasetStore:
             ingestion_notices=parsed.notices,
         )
         with self._lock:
-            self._records[dataset_id] = record
-        logger.info("dataset stored id=%s rows=%s cols=%s", dataset_id, df.shape[0], df.shape[1])
+            try:
+                temporary_path.write_bytes(content)
+                os.replace(temporary_path, stored_path)
+                if self._catalog is not None:
+                    self._catalog.put(
+                        DatasetMetadata(
+                            id=record.id,
+                            original_filename=record.original_filename,
+                            extension=record.extension,
+                            uploaded_at=_as_utc(record.uploaded_at),
+                            byte_size=len(content),
+                            sha256=hashlib.sha256(content).hexdigest(),
+                            ingestion_notices=list(record.ingestion_notices or []),
+                        )
+                    )
+                self._records[dataset_id] = record
+            except Exception:
+                temporary_path.unlink(missing_ok=True)
+                stored_path.unlink(missing_ok=True)
+                raise
+        logger.info(
+            "dataset stored id=%s rows=%s cols=%s persistent=%s",
+            dataset_id,
+            df.shape[0],
+            df.shape[1],
+            self._persistence_enabled,
+        )
         return record
 
     @staticmethod
@@ -107,6 +145,16 @@ class DatasetStore:
         self.sweep_expired()
         with self._lock:
             record = self._records.get(dataset_id)
+            if record is None and self._catalog is not None:
+                record = self._restore(dataset_id)
+                if record is not None:
+                    self._records[dataset_id] = record
+                    logger.info(
+                        "dataset restored id=%s rows=%s cols=%s",
+                        dataset_id,
+                        record.df.shape[0],
+                        record.df.shape[1],
+                    )
         if record is None:
             raise DatasetNotFoundError(f"Dataset '{dataset_id}' not found.")
         return record
@@ -124,18 +172,85 @@ class DatasetStore:
             current = current.replace(tzinfo=timezone.utc)
         cutoff = current - timedelta(minutes=settings.dataset_ttl_minutes)
         with self._lock:
-            expired_ids = [
+            expired_ids = {
                 dataset_id
                 for dataset_id, record in self._records.items()
                 if _as_utc(record.uploaded_at) <= cutoff
-            ]
-            expired = [self._records.pop(dataset_id) for dataset_id in expired_ids]
-        for record in expired:
-            _delete_upload_file(record)
-            logger.info("dataset expired id=%s", record.id)
-        if expired:
-            logger.info("dataset retention sweep removed=%s", len(expired))
-        return len(expired)
+            }
+            metadata_by_id: dict[str, DatasetMetadata] = {}
+            if self._catalog is not None:
+                expired_ids.update(self._catalog.expired_ids(cutoff))
+                for dataset_id in expired_ids:
+                    try:
+                        metadata = self._catalog.get(dataset_id)
+                    except (ValueError, TypeError):
+                        metadata = None
+                    if metadata is not None:
+                        metadata_by_id[dataset_id] = metadata
+                self._catalog.delete_many(expired_ids)
+            expired_records = {
+                dataset_id: self._records.pop(dataset_id, None) for dataset_id in expired_ids
+            }
+        for dataset_id in expired_ids:
+            record = expired_records[dataset_id]
+            metadata = metadata_by_id.get(dataset_id)
+            extension = record.extension if record is not None else metadata.extension if metadata else None
+            if extension:
+                try:
+                    _safe_upload_path(self._uploads_root, dataset_id, extension).unlink(missing_ok=True)
+                except (OSError, DatasetUnavailableError):
+                    logger.warning("expired dataset file deletion failed id=%s", dataset_id)
+            logger.info("dataset expired id=%s", dataset_id)
+        if expired_ids:
+            logger.info("dataset retention sweep removed=%s", len(expired_ids))
+        return len(expired_ids)
+
+    def persisted_count(self) -> int:
+        return self._catalog.count() if self._catalog is not None else 0
+
+    def _restore(self, dataset_id: str) -> DatasetRecord | None:
+        if not _valid_dataset_id(dataset_id):
+            return None
+        try:
+            metadata = self._catalog.get(dataset_id) if self._catalog is not None else None
+        except (ValueError, TypeError) as exc:
+            logger.warning("persistent dataset metadata invalid id=%s", dataset_id)
+            raise DatasetUnavailableError(
+                f"Dataset '{dataset_id}' cannot be restored safely. Please upload it again."
+            ) from exc
+        if metadata is None:
+            return None
+        path = _safe_upload_path(self._uploads_root, dataset_id, metadata.extension)
+        try:
+            content = path.read_bytes()
+        except OSError as exc:
+            logger.warning("persistent dataset file unavailable id=%s", dataset_id)
+            raise DatasetUnavailableError(f"Dataset '{dataset_id}' is no longer available. Please upload it again.") from exc
+        if len(content) != metadata.byte_size or not hmac.compare_digest(
+            hashlib.sha256(content).hexdigest(), metadata.sha256
+        ):
+            logger.warning("persistent dataset integrity check failed id=%s", dataset_id)
+            raise DatasetUnavailableError(
+                f"Dataset '{dataset_id}' failed an integrity check. Please upload it again."
+            )
+        try:
+            parsed = parse_dataset(content, metadata.extension)
+        except ValidationError as exc:
+            logger.warning("persistent dataset parse failed id=%s", dataset_id)
+            raise DatasetUnavailableError(
+                f"Dataset '{dataset_id}' cannot be restored safely. Please upload it again."
+            ) from exc
+        if len(parsed.dataframe) > get_settings().max_rows:
+            raise DatasetUnavailableError(f"Dataset '{dataset_id}' exceeds the current row limit. Please upload a smaller file.")
+        return DatasetRecord(
+            id=dataset_id,
+            original_filename=metadata.original_filename,
+            extension=metadata.extension,
+            uploaded_at=metadata.uploaded_at,
+            df=parsed.dataframe,
+            stored_path=str(path),
+            ingestion_notices=metadata.ingestion_notices or parsed.notices,
+        )
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -144,17 +259,20 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
-def _delete_upload_file(record: DatasetRecord) -> None:
-    settings = get_settings()
-    uploads_root = (settings.storage_path / "uploads").resolve()
-    candidate = Path(record.stored_path).resolve()
-    if candidate.parent != uploads_root or candidate.stem != record.id:
-        logger.warning("expired dataset file deletion skipped: path validation failed id=%s", record.id)
-        return
+def _valid_dataset_id(dataset_id: str) -> bool:
     try:
-        candidate.unlink(missing_ok=True)
-    except OSError:
-        logger.warning("expired dataset file deletion failed id=%s", record.id)
+        return uuid.UUID(hex=dataset_id).hex == dataset_id
+    except (ValueError, AttributeError):
+        return False
+
+
+def _safe_upload_path(uploads_root: Path, dataset_id: str, extension: str) -> Path:
+    if not _valid_dataset_id(dataset_id) or extension not in {".csv", ".xlsx"}:
+        raise DatasetUnavailableError(f"Dataset '{dataset_id}' cannot be restored safely.")
+    candidate = (uploads_root / f"{dataset_id}{extension}").resolve()
+    if candidate.parent != uploads_root or candidate.stem != dataset_id:
+        raise DatasetUnavailableError(f"Dataset '{dataset_id}' cannot be restored safely.")
+    return candidate
 
 
 _store: DatasetStore | None = None

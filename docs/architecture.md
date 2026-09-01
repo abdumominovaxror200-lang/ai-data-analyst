@@ -11,7 +11,7 @@
                     ┌───────────────────────┼───────────────────────┐
                     │                       │                       │
               DatasetStore            DataAnalystAgent          ToolRouter
-           (in-memory, uuid-keyed)   (tool-calling loop)     (dispatch by name)
+          (SQLite + file store)      (tool-calling loop)     (dispatch by name)
                     │                       │                       │
                     │                 LLMProvider              pandas/NumPy
                     │            (OpenAI-compatible API)        tool functions
@@ -22,8 +22,8 @@
 ## Request flow
 
 1. **Upload** (`POST /api/datasets/upload`): file is validated (extension, size), parsed into a
-   `pandas.DataFrame`, and stored in an in-memory `DatasetStore` keyed by a generated UUID. The
-   raw bytes are also written to `storage/uploads/<uuid>.<ext>` — never at a user-controlled path.
+   `pandas.DataFrame`, and cached in `DatasetStore` under a generated UUID. Raw bytes are written
+   to `storage/uploads/<uuid>.<ext>` and integrity-checked metadata to `storage/datasets.sqlite3`.
 2. **Direct analysis** (`POST /api/analysis`): the frontend can call any tool directly by name
    (used by the Charts/Anomalies tabs, which need a specific, deterministic tool call rather than
    an LLM's judgment about which tool to use).
@@ -34,15 +34,12 @@
    `generate_business_insights` into a structured report — no LLM involved, so it's available
    even without an `LLM_API_KEY` configured.
 
-## Why no database for v1
+## Dataset persistence
 
-The brief explicitly asks not to introduce a database unless genuinely necessary for the MVP.
-A single analyst session — upload a file, explore it, close the tab — doesn't need durability
-across process restarts, and adding PostgreSQL would mean migrations, connection pooling, and
-ORM boilerplate with no payoff for a portfolio demo. `DatasetStore` is a small, swappable
-abstraction (`backend/app/datasets/storage.py`) — if persistence becomes a real requirement, it
-can be re-implemented behind the same `save()`/`get()` interface without touching any route or
-tool code.
+SQLite stores metadata only; raw rows remain in UUID-named server-owned files. Dataframes are
+re-parsed lazily on the first request after restart, so startup does not load every retained
+dataset into memory. Dataset IDs are capability keys and are not exposed by a global listing API.
+TTL expiry deletes the memory entry, catalog row, and file together.
 
 ## LLM provider abstraction
 
