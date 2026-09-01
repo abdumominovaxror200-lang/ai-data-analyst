@@ -6,9 +6,18 @@ from datetime import datetime
 import pandas as pd
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from app.config import get_settings
+from app.datasets.bundle import join_bundle
 from app.datasets.storage import DatasetNotFoundError, get_dataset_store
 from app.datasets.validation import ValidationError
-from app.schemas import ColumnInfo, DatasetProfile, IngestionNoticeOut, UploadResponse
+from app.schemas import (
+    ColumnInfo,
+    DatasetBundleJoinRequest,
+    DatasetBundleJoinResponse,
+    DatasetProfile,
+    IngestionNoticeOut,
+    UploadResponse,
+)
 from app.tools.profiler import profile_dataset
 
 logger = logging.getLogger(__name__)
@@ -57,6 +66,31 @@ async def upload_dataset(file: UploadFile = File(...)) -> UploadResponse:
     )
     logger.info("upload complete dataset_id=%s filename=%s", record.id, record.original_filename)
     return UploadResponse(dataset_id=record.id, profile=profile)
+
+
+@router.post("/datasets/bundles/join", response_model=DatasetBundleJoinResponse)
+def create_joined_dataset(request: DatasetBundleJoinRequest) -> DatasetBundleJoinResponse:
+    store = get_dataset_store()
+    try:
+        result = join_bundle(request, store, max_output_rows=get_settings().max_rows)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    profile = _to_profile(
+        result.record.id,
+        result.record.original_filename,
+        result.record.uploaded_at,
+        result.record.df,
+        result.record.metrics,
+        result.record.ingestion_notices,
+    )
+    return DatasetBundleJoinResponse(
+        dataset_id=result.record.id,
+        profile=profile,
+        joins=result.diagnostics,
+        source_rows=result.source_rows,
+        output_rows=result.output_rows,
+        row_amplification=result.row_amplification,
+    )
 
 
 @router.get("/datasets/{dataset_id}", response_model=DatasetProfile)

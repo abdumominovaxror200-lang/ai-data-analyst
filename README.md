@@ -310,7 +310,12 @@ upload flow is the single largest documented gap in this project — see
 
 - **Local persistence only.** Retained datasets survive backend restart and can be re-analyzed
   through their existing dataset ID. Reasoning transcripts and multi-user history are not persisted.
-- **Single dataset per session.** No joins across multiple uploaded files yet.
+- **Explicit multi-file joins.** `POST /api/datasets/bundles/join` accepts 2–8 existing
+  dataset IDs, safe aliases, explicit key mappings, and `inner`/`left`/`right`/`full` joins.
+  It returns a normal persisted dataset plus typed cardinality, null-key, duplicate-key,
+  unmatched-row, and row-amplification diagnostics. Many-to-many joins fail closed unless the
+  caller explicitly opts in after reviewing the diagnostics; generated output is bounded by the
+  normal dataset row limit. Automatic key discovery and a visual join builder are not yet included.
 - **Upload path caps out well below the large-data engine's tested scale.** See
   [Large-data engine](#large-data-engine-not-yet-wired-into-upload) above.
 - **Free-tier LLM rate limits.** Groq's free tier caps at 8,000 tokens/minute and a daily token
