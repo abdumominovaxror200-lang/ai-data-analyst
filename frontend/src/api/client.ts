@@ -51,9 +51,16 @@ function requireAvailableDataset(datasetId: string): void {
   if (expiredDatasetIds.has(datasetId)) throw new DatasetExpiredError();
 }
 
-api.interceptors.response.use(undefined, (error: unknown) => {
+api.interceptors.response.use(undefined, async (error: unknown) => {
   if (axios.isAxiosError(error) && error.response?.status === 404) {
-    const detail = error.response.data?.detail;
+    let detail = error.response.data?.detail;
+    if (typeof Blob !== "undefined" && error.response.data instanceof Blob) {
+      try {
+        detail = JSON.parse(await error.response.data.text()).detail;
+      } catch {
+        // Preserve the ordinary API error below when a blob is not JSON.
+      }
+    }
     const match = typeof detail === "string" ? /^Dataset '([^']+)' not found\.?$/.exec(detail) : null;
     const datasetId = match?.[1];
     if (datasetId) {
@@ -105,6 +112,12 @@ export async function sendChatMessage(
 export async function generateReport(datasetId: string): Promise<ReportResponse> {
   requireAvailableDataset(datasetId);
   const { data } = await api.post<ReportResponse>("/reports", { dataset_id: datasetId });
+  return data;
+}
+
+export async function downloadExcelReport(datasetId: string): Promise<Blob> {
+  requireAvailableDataset(datasetId);
+  const { data } = await api.get<Blob>(`/reports/${datasetId}/excel`, { responseType: "blob" });
   return data;
 }
 

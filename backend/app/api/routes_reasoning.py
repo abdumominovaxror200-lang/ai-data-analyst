@@ -55,6 +55,8 @@ def reason(request: ReasonRequest) -> ReasonResponse:
     except LLMProviderError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    record.latest_analysis = result
+
     logger.info(
         "reason dataset_id=%s intent=%s findings=%d evidence=%d",
         request.dataset_id,
