@@ -22,6 +22,9 @@ EXPECTED_DETAIL = f"Dataset '{MISSING_DATASET_ID}' not found."
             {"dataset_id": MISSING_DATASET_ID, "message": "hello", "history": []},
         ),
         ("post", "/api/reports", {"dataset_id": MISSING_DATASET_ID}),
+        ("get", f"/api/reports/{MISSING_DATASET_ID}/excel", None),
+        ("get", f"/api/reports/{MISSING_DATASET_ID}/word", None),
+        ("get", f"/api/reports/{MISSING_DATASET_ID}/powerpoint", None),
         ("post", "/api/reason", {"dataset_id": MISSING_DATASET_ID, "message": "summarize"}),
     ],
 )

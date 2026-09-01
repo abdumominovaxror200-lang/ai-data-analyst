@@ -121,6 +121,18 @@ export async function downloadExcelReport(datasetId: string): Promise<Blob> {
   return data;
 }
 
+export async function downloadWordReport(datasetId: string): Promise<Blob> {
+  requireAvailableDataset(datasetId);
+  const { data } = await api.get<Blob>(`/reports/${datasetId}/word`, { responseType: "blob" });
+  return data;
+}
+
+export async function downloadPowerPointReport(datasetId: string): Promise<Blob> {
+  requireAvailableDataset(datasetId);
+  const { data } = await api.get<Blob>(`/reports/${datasetId}/powerpoint`, { responseType: "blob" });
+  return data;
+}
+
 export async function runReasoning(datasetId: string, message: string): Promise<ReasonResponse> {
   requireAvailableDataset(datasetId);
   const { data } = await api.post<ReasonResponse>("/reason", { dataset_id: datasetId, message });
