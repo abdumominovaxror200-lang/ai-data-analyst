@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     max_upload_mb: float = 25
     max_rows: int = 500_000
     dataset_ttl_minutes: int = Field(default=240, gt=0)
+    dataset_persistence_enabled: bool = True
     storage_dir: str = str(BACKEND_DIR / "storage")
     log_level: str = "INFO"
     cors_origins: str = (
