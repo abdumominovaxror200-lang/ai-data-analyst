@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_base_url: str = "https://api.openai.com/v1"
     llm_model: str = "gpt-4o-mini"
+    # Optional OpenAI-compatible paid-tier routing hint. Kept empty by default
+    # because many providers and self-hosted servers reject unknown payload fields.
+    llm_service_tier: str = ""
+    llm_request_timeout: float = Field(default=60.0, gt=0, le=600)
     # Optional — only some providers/models (e.g. Groq's gpt-oss family) support this.
     # When set, it's forwarded as-is; left empty it's omitted so strictly OpenAI-spec
     # providers that reject unknown fields are unaffected.
