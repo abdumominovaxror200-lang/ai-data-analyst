@@ -6,6 +6,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
@@ -18,6 +19,9 @@ from app.datasets.validation import (
     validate_extension,
     validate_size,
 )
+
+if TYPE_CHECKING:
+    from app.reasoning.contracts import AnalysisResult
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +36,7 @@ class DatasetRecord:
     stored_path: str
     metrics: MetricRegistry | None = None
     ingestion_notices: list[IngestionNotice] | None = None
+    latest_analysis: "AnalysisResult | None" = None
 
     def __post_init__(self) -> None:
         if self.metrics is None:
