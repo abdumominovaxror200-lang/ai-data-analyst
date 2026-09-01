@@ -4,8 +4,10 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
-from app.reasoning.contracts import DataCaveats
+
+from app.datasets.bundle import DatasetBundle, JoinDiagnostics
 from app.datasets.metric_registry import MetricDefinition
+from app.reasoning.contracts import DataCaveats
 
 
 class ColumnInfo(BaseModel):
@@ -54,6 +56,19 @@ class DatasetProfile(BaseModel):
 class UploadResponse(BaseModel):
     dataset_id: str
     profile: DatasetProfile
+
+
+class DatasetBundleJoinRequest(DatasetBundle):
+    pass
+
+
+class DatasetBundleJoinResponse(BaseModel):
+    dataset_id: str
+    profile: DatasetProfile
+    joins: list[JoinDiagnostics]
+    source_rows: int
+    output_rows: int
+    row_amplification: float
 
 
 class AnalysisRequest(BaseModel):
